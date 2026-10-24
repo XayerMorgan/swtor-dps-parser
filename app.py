@@ -188,45 +188,109 @@ class OverlayBridgeAPI:
             self._parser.reset_all()
         return True
 
-    def set_always_on_top(self, on_top: bool) -> bool:
+    def _get_hwnd_and_scale(self) -> tuple[int, float]:
         win = self._get_window()
-        if win:
+        if not win or not getattr(win, "native", None):
+            return (0, 1.0)
+        try:
+            import ctypes
+            hwnd = int(win.native.Handle.ToInt32())
+            dpi = ctypes.windll.user32.GetDpiForWindow(hwnd)
+            scale = (dpi / 96.0) if dpi > 0 else 1.0
+            return (hwnd, scale)
+        except Exception:
+            return (0, 1.0)
+
+    def set_always_on_top(self, on_top: bool) -> bool:
+        """
+        Uses native Win32 SetWindowPos with SWP_ASYNCWINDOWPOS (0x4000) instead of
+        WinForms Form.TopMost. Setting Form.TopMost from a pywebview JS bridge worker thread
+        calls RecreateHandle() across threads and deadlocks the WinForms STA thread!
+        """
+        hwnd, _ = self._get_hwnd_and_scale()
+        if hwnd:
             try:
-                win.on_top = bool(on_top)
+                import ctypes
+                HWND_TOPMOST = -1
+                HWND_NOTOPMOST = -2
+                SWP_NOSIZE = 0x0001
+                SWP_NOMOVE = 0x0002
+                SWP_NOACTIVATE = 0x0010
+                SWP_ASYNCWINDOWPOS = 0x4000
+                ctypes.windll.user32.SetWindowPos(
+                    hwnd,
+                    HWND_TOPMOST if on_top else HWND_NOTOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS,
+                )
             except Exception:
                 pass
         return bool(on_top)
 
     def set_compact_mode(self, compact: bool) -> bool:
-        win = self._get_window()
-        if win:
+        """
+        Uses native Win32 SetWindowPos with SWP_ASYNCWINDOWPOS (0x4000) to avoid
+        cross-thread WinForms property access on Form.Location/Form.Width.
+        """
+        hwnd, scale = self._get_hwnd_and_scale()
+        if hwnd:
             try:
-                if compact:
-                    win.resize(460, 128)
-                else:
-                    win.resize(460, 560)
+                import ctypes
+                SWP_NOMOVE = 0x0002
+                SWP_NOZORDER = 0x0004
+                SWP_NOACTIVATE = 0x0010
+                SWP_ASYNCWINDOWPOS = 0x4000
+                target_w = int(460 * scale)
+                target_h = int((128 if compact else 560) * scale)
+                ctypes.windll.user32.SetWindowPos(
+                    hwnd,
+                    0,
+                    0,
+                    0,
+                    target_w,
+                    target_h,
+                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS,
+                )
             except Exception:
                 pass
         return bool(compact)
 
     def choose_log_dir(self) -> str:
-        win = self._get_window()
-        if not win:
-            return str(self._parser.log_dir)
+        """
+        Runs WinForms FolderBrowserDialog on a dedicated STA thread so it never
+        cross-thread blocks the WebView2 UI thread.
+        """
+        result_holder = [str(self._parser.log_dir)]
+
+        def _pick():
+            try:
+                import System.Windows.Forms as WinForms
+                dlg = WinForms.FolderBrowserDialog()
+                dlg.Description = "Select SWTOR CombatLogs Folder"
+                dlg.SelectedPath = str(self._parser.log_dir)
+                if dlg.ShowDialog() == WinForms.DialogResult.OK and dlg.SelectedPath:
+                    chosen = Path(dlg.SelectedPath)
+                    with self._lock:
+                        self._parser.log_dir = chosen
+                        self._parser.current_file = None
+                        self._parser.file_pos = 0
+                        self._parser.poll()
+                    result_holder[0] = str(chosen)
+            except Exception:
+                pass
+
         try:
-            import webview
-            folders = win.create_file_dialog(webview.FOLDER_DIALOG)
-            if folders and len(folders) > 0:
-                chosen = Path(folders[0])
-                with self._lock:
-                    self._parser.log_dir = chosen
-                    self._parser.current_file = None
-                    self._parser.file_pos = 0
-                    self._parser.poll()
-                return str(chosen)
+            from System.Threading import ApartmentState, Thread, ThreadStart
+            t = Thread(ThreadStart(_pick))
+            t.SetApartmentState(ApartmentState.STA)
+            t.Start()
+            t.Join()
         except Exception:
             pass
-        return str(self._parser.log_dir)
+        return result_holder[0]
 
     def open_log_dir(self) -> bool:
         try:

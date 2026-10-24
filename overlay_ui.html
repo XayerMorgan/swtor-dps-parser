@@ -686,6 +686,7 @@
   let isCompact = false;
   let isSimRunning = false;
   let lastSnapshot = null;
+  let fetchInFlight = false;
 
   function fmtNum(n) {
     if (n === undefined || n === null) return '0';
@@ -894,6 +895,8 @@
   }
 
   async function fetchSnapshot() {
+    if (fetchInFlight) return;
+    fetchInFlight = true;
     try {
       if (window.pywebview && window.pywebview.api) {
         const snap = await window.pywebview.api.get_snapshot(selectedEncounterIdx);
@@ -907,6 +910,8 @@
       }
     } catch (e) {
       // Ignore transient poll errors
+    } finally {
+      fetchInFlight = false;
     }
   }
 
