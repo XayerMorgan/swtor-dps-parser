@@ -152,6 +152,7 @@ class OverlayBridgeAPI:
         self._parser = parser
         self._lock = lock
         self._sim = sim
+        self._saved_full_h = 0
 
     def _get_window(self):
         try:
@@ -234,27 +235,47 @@ class OverlayBridgeAPI:
                 pass
         return bool(on_top)
 
-    def set_compact_mode(self, compact: bool) -> bool:
+    def set_compact_mode(self, compact: bool, content_height: int = 0) -> bool:
         """
-        Uses native Win32 SetWindowPos with SWP_ASYNCWINDOWPOS (0x4000) to avoid
-        cross-thread WinForms property access on Form.Location/Form.Width.
+        Uses native Win32 GetWindowRect / GetClientRect + SetWindowPos with
+        SWP_ASYNCWINDOWPOS (0x4000) to size the outer window to the exact
+        titlebar frame height + DOM content height so Mini mode never clips.
         """
         hwnd, scale = self._get_hwnd_and_scale()
         if hwnd:
             try:
                 import ctypes
+                from ctypes import wintypes
+
                 SWP_NOMOVE = 0x0002
                 SWP_NOZORDER = 0x0004
                 SWP_NOACTIVATE = 0x0010
                 SWP_ASYNCWINDOWPOS = 0x4000
-                target_w = int(500 * scale)
-                target_h = int((144 if compact else 560) * scale)
+
+                win_rect = wintypes.RECT()
+                cli_rect = wintypes.RECT()
+                ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(win_rect))
+                ctypes.windll.user32.GetClientRect(hwnd, ctypes.byref(cli_rect))
+
+                win_w = max(win_rect.right - win_rect.left, int(520 * scale))
+                win_h = win_rect.bottom - win_rect.top
+                cli_h = cli_rect.bottom - cli_rect.top
+                frame_h = max(win_h - cli_h, int(38 * scale))
+
+                if compact:
+                    if win_h > int(260 * scale):
+                        self._saved_full_h = win_h
+                    css_h = max(int(content_height or 116), 112)
+                    target_h = frame_h + int((css_h + 6) * scale)
+                else:
+                    target_h = self._saved_full_h if self._saved_full_h > int(300 * scale) else int(580 * scale)
+
                 ctypes.windll.user32.SetWindowPos(
                     hwnd,
                     0,
                     0,
                     0,
-                    target_w,
+                    win_w,
                     target_h,
                     SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS,
                 )
@@ -632,9 +653,9 @@ def main() -> None:
         title="SWTOR Holocron DPS Overlay",
         url=html_file.as_uri(),
         js_api=api,
-        width=500,
-        height=560,
-        min_size=(380, 125),
+        width=520,
+        height=580,
+        min_size=(420, 120),
         on_top=True,
         background_color="#0b0f19",
     )

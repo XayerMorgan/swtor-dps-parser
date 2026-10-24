@@ -129,14 +129,14 @@
   .header-controls {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
 
   .header-divider {
     width: 1px;
-    height: 16px;
+    height: 15px;
     background: rgba(255, 255, 255, 0.16);
     margin: 0 1px;
   }
@@ -145,10 +145,10 @@
     background: rgba(0, 212, 255, 0.10);
     border: 1px solid rgba(0, 212, 255, 0.34);
     color: var(--text-primary);
-    padding: 3px 6px;
-    min-height: 24px;
+    padding: 2px 5px;
+    min-height: 22px;
     border-radius: 4px;
-    font-size: 10.5px;
+    font-size: 10px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -738,8 +738,8 @@
   }
 
   body.compact-mode .hero-banner {
-    flex: 1;
-    align-items: center;
+    padding: 6px 10px;
+    align-items: stretch;
     border-bottom: none;
   }
 
@@ -2268,7 +2268,10 @@
     const btn = document.getElementById('btnCompact');
     if (btn) btn.classList.toggle('active', isCompact);
     if (window.pywebview && window.pywebview.api) {
-      await window.pywebview.api.set_compact_mode(isCompact);
+      const hdr = document.querySelector('.header');
+      const hero = document.querySelector('.hero-banner');
+      const neededCssH = Math.ceil((hdr ? hdr.offsetHeight : 38) + (hero ? hero.offsetHeight : 78) + 6);
+      await window.pywebview.api.set_compact_mode(isCompact, neededCssH);
     }
   }
 
