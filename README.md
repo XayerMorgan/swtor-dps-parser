@@ -1,29 +1,30 @@
 # SWTOR Holocron DPS — Live In-Game Overlay & Combat Log Parser
 
-A lightweight, local-first live DPS parser and Always-On-Top overlay for **Star Wars: The Old Republic (SWTOR)** (supporting both 7.0+ *Legacy of the Sith* and classic combat logs).
+A lightweight, local-first live DPS parser, multi-hour session aggregator, and Always-On-Top Windows overlay for **Star Wars: The Old Republic (SWTOR)** (supporting both 7.0+ *Legacy of the Sith* and classic combat logs).
 
-## Features
-- **Smart Log Directory Auto-Discovery & Custom Folder Selector:**
-  - Automatically scans Windows Registry (`User Shell Folders\Personal`), `OneDrive` / `OneDriveConsumer` / `OneDriveCommercial` folders, standard `Documents`, and secondary drives (`D:`, `E:`, `F:`, `G:`) to locate your `CombatLogs` folder and pick the one with the newest logs.
-  - Allows you to browse for a custom folder (`📂 Folder` button), paste a custom path, or pick from a ranked list of auto-detected candidate locations in **❓ Setup & Help** (saved automatically across restarts).
-- **Real-Time Metrics (250ms updates):**
-  - Personal **DPS**, **Total Damage**, **Crit %**, **Accuracy %**, **APM**, **HPS**, and **DTPS**
-  - Live **Real-Time DPS Curve** sparkline and **Boss HP Bar**
-  - Detailed **Ability Breakdown** (hits, crits, max hit, average hit, damage share, DPS)
-  - **Group Raid DPS** and **Healing & Tank** tabs with automatic Combat Style / Discipline detection
-- **Full Play Session Aggregation (`📊 Session`) & Per-Encounter (`⚔️ Fight`) Modes:**
-  - **📊 Session Mode (Default):** Continuously aggregates **all encounters, skills, and abilities** (`Snipe`, `Ambush`, `Suppressive Fire`, `Penetrating Blasts`, etc.) across your entire 1–3+ hour play session without resetting between pulls. Tracks both **Active Combat Time** and **Total Session Time-to-Date**.
-  - **⚔️ Fight Mode & Encounter Selector:** Switch with one click to view only the current/latest fight or inspect any individual NPC pull (`#1..#N`) in your session.
+![SWTOR Holocron DPS Live Overlay](swtor_overlay_screenshot.png)
+
+---
+
+## Key Features
+- **Full Play Session Aggregation (`📊 Session`) & Single-Pull (`⚔️ Fight`) Modes:**
+  - **📊 Session Mode (Default):** Aggregates **all encounters, skills, and abilities** (`Suppressive Fire`, `Snipe`, `Penetrating Blasts`, `Ambush`, `Followthrough`, `Orbital Strike`, etc.) across your entire 1–3+ hour play session (`Time-to-Date`) without resetting between pulls. Tracks both **Active Combat Time** and **Total Session Span**.
+  - **⚔️ Fight Mode & Pull Selector:** Switch with one click to inspect only the current/latest NPC fight or any individual encounter (`#1..#N`) in your session, or click any spike directly on the **Session DPS Curve** to jump to that pull.
+- **Interactive Session DPS Curve & High-Contrast Ability Breakdown:**
+  - Real-time DPS curve with start/mid/end time axis labels, vertical dashed fight-boundary markers across multi-pull sessions, hover tooltips showing exact pull DPS, and click-to-inspect.
+  - Preattentive ability share bars (`%` of total damage), hit & crit rates (`909 hits · 38% crit`), total damage, and right-aligned DPS—all tuned to exceed WCAG 1.4.3 AA contrast requirements.
+  - Context-aware KPI cards: **Personal DPS** (with live baseline $\Delta$), **Crit / Acc**, **APM**, and **Max Hit / Taken** (showing your largest single hit, ability name, and `DTPS`, or switching automatically to `HPS / Taken` for healers).
+- **In-Game Overlay Controls (`📌 Pin`, `▣ Mini`, `⚡ Auto`, `◐ Opacity`, Safe `↺ Reset`):**
+  - **📌 Pin (Always On Top):** Stays visible over SWTOR when playing in *Fullscreen (Windowed)* mode.
+  - **▣ Mini & ⚡ Auto-Mini:** Collapses the window into a compact 4-tile HUD bar during combat and automatically expands after combat when `⚡ Auto` is active.
+  - **◐ 100% / 85% / 70% Opacity:** Native Win32 layered window transparency so you can see the game world clearly behind the meter.
+  - **Protected `↺ Reset` with `↩ Undo`:** Separated from live controls with a 2-step confirmation (`⚠ Confirm?`) and a 15-second **`↩ Undo`** recovery button so you never accidentally wipe a 2-hour session.
 - **Named Session Saving & Cross-Session Historical Analysis (`📈 History` & `💾 Save Session`):**
-  - Save an entire 2-hour play session under a custom **Session Name** (or save individual boss fights) to `%APPDATA%\SWTOR_Holocron_DPS\history_references.json` with all recorded skills & abilities preserved.
+  - Save an entire play session under a custom **Session Name** (or save individual boss fights) to `%APPDATA%\SWTOR_Holocron_DPS\history_references.json` with all recorded skills & abilities preserved.
   - **🎯 Active Baseline Live Comparison:** Pin any saved Session or Fight as your active baseline to see real-time **$\Delta$ DPS**, **$\Delta$ Crit %**, and **per-ability $\Delta$ DPS** gains/losses right on the live HUD.
-  - **Cross-Session Progression Chart:** Track Best DPS, Average DPS, and progression trends across sessions, filterable by Target or Combat Style/Spec.
   - **📜 Import From Past Log Files:** Scan past `combat_*.txt` files in your `CombatLogs` folder and import either the **📦 Full Play Session** or specific boss encounters into your reference library.
-- **In-Game Overlay Controls:**
-  - **📌 Pin (Always On Top):** Stays visible over SWTOR when playing in *Fullscreen (Windowed)* mode
-  - **▣ Mini HUD Mode:** Collapses the window into a compact stat bar during boss pulls
-  - **⚡ Demo Fight:** Built-in combat log simulator to preview and test the meter anytime
-  - **❓ Setup & Help:** Visual guide showing how to turn on combat logging in SWTOR and locate your log files
+- **Smart Log Directory Auto-Discovery (`⚙️ Setup & Folder`):**
+  - Automatically scans Windows Registry (`User Shell Folders\Personal`), `OneDrive` folders, standard `Documents`, and secondary drives (`D:`, `E:`, `F:`, `G:`) to locate your `CombatLogs` folder and pick the one with the newest logs.
 
 ---
 
@@ -42,7 +43,7 @@ A lightweight, local-first live DPS parser and Always-On-Top overlay for **Star 
 - **OneDrive Redirected Path:**
   `C:\Users\<YourUsername>\OneDrive\Documents\Star Wars - The Old Republic\CombatLogs`
 
-See **[`HELP_How_To_Enable_Combat_Logging.html`](HELP_How_To_Enable_Combat_Logging.html)** for the full illustrated setup guide.
+See **[`HELP_How_To_Enable_Combat_Logging.html`](HELP_How_To_Enable_Combat_Logging.html)** (or click **`📖 Manual`** in the app header) for the full illustrated setup and overlay guide.
 
 ---
 
@@ -58,5 +59,5 @@ python app.py --browser
 python -m unittest test_parser.py
 
 # Build standalone single-file executable
-python -m PyInstaller --noconfirm --onefile --windowed --name "SWTOR_DPS_Parser" --add-data "overlay_ui.html;." --add-data "HELP_How_To_Enable_Combat_Logging.html;." --add-data "swtor_combat_logging_help.png;." app.py
+pyinstaller --noconfirm SWTOR_DPS_Parser.spec
 ```

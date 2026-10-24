@@ -244,28 +244,35 @@
 
     <!-- Step 3 -->
     <div class="card">
-      <h2><span class="step-badge">3</span> Using the Live In-Game Overlay</h2>
+      <h2><span class="step-badge">3</span> Using the Live In-Game Overlay &amp; Session Analyzer</h2>
       <ul>
         <li><strong>Play in Fullscreen (Windowed) Mode:</strong> In SWTOR <em>Preferences &rarr; Graphics</em>, set Display Mode to <strong>Fullscreen (Windowed)</strong>. This allows the parser overlay to sit directly on top of your game screen without minimizing SWTOR.</li>
-        <li><strong>Automatic Encounter Detection:</strong> Every time you enter combat, the status indicator turns pulsing red and live DPS, Crit %, Accuracy %, APM, HPS, and DTPS update every 250ms.</li>
+        <li><strong>Full Session Aggregation (<span class="kbd">📊 Session</span>) vs. Single Fight (<span class="kbd">⚔️ Fight</span>):</strong> By default, <strong>📊 Session</strong> aggregates every fight, skill, and ability across your entire multi-hour play session (tracking both active combat time and total session span). Switch to <strong>⚔️ Fight</strong> or click any spike on the <strong>Session DPS Curve</strong> to inspect an individual pull.</li>
       </ul>
+
+      <div class="screenshot-frame" style="max-width: 540px; margin: 16px auto;">
+        <img src="swtor_overlay_screenshot.png" alt="SWTOR Holocron DPS Overlay — Live Session View (58 Fights)" />
+        <div class="caption">
+          <strong>Live SWTOR Holocron DPS Overlay in Session Mode:</strong> Aggregating 58 fights (<code>16:41</code> active combat across a <code>03:32:35</code> play session) with interactive fight markers on the DPS curve, Max Hit / DTPS tracking, and per-skill damage share bars.
+        </div>
+      </div>
 
       <div class="grid-2">
         <div class="feature-box">
-          <h3>📌 Pin (Always On Top)</h3>
-          <p>Keeps the DPS window floating above SWTOR while you play. Click to toggle on or off.</p>
+          <h3>📌 Pin &amp; ◐ 100%/85%/70% Opacity</h3>
+          <p>Keeps the DPS window floating above SWTOR while you play, with adjustable native window transparency.</p>
         </div>
         <div class="feature-box">
-          <h3>▣ Mini HUD Mode</h3>
-          <p>Collapses the window into a compact horizontal stat bar showing only your key numbers during boss pulls.</p>
+          <h3>▣ Mini HUD &amp; ⚡ Auto-Mini</h3>
+          <p>Collapses the window into a compact 4-card HUD bar during combat and automatically expands after the fight when <strong>⚡ Auto</strong> is enabled.</p>
         </div>
         <div class="feature-box">
-          <h3>⚡ Demo Fight</h3>
-          <p>Streams a simulated boss fight so you can test the overlay and layout even when SWTOR is closed.</p>
+          <h3>💾 Save Session &amp; 📈 History</h3>
+          <p>Save full play sessions or boss pulls to persistent history and pin any saved parse as your <strong>🎯 Active Baseline</strong> for real-time &Delta; DPS comparisons.</p>
         </div>
         <div class="feature-box">
-          <h3>Encounter History</h3>
-          <p>Use the dropdown menu above the tabs to inspect any previous boss pull or trash fight from your current log file.</p>
+          <h3>Protected ↺ Reset with ↩ Undo</h3>
+          <p>Requires a 2-step confirmation (<strong>⚠ Confirm?</strong>) when session data exists and provides a 15-second <strong>↩ Undo</strong> button so you never lose a session by accident.</p>
         </div>
       </div>
     </div>

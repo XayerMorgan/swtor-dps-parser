@@ -570,6 +570,10 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
     def help_image():
         return FileResponse(help_img_path)
 
+    @app.get("/swtor_overlay_screenshot.png")
+    def overlay_screenshot_image():
+        return FileResponse(get_resource_path("swtor_overlay_screenshot.png"))
+
     @app.get("/holocron_icon.png")
     def app_icon_png():
         return FileResponse(get_resource_path("holocron_icon.png"))
