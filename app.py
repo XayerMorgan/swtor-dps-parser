@@ -188,6 +188,10 @@ class OverlayBridgeAPI:
             self._parser.reset_all()
         return True
 
+    def undo_reset(self) -> bool:
+        with self._lock:
+            return self._parser.undo_reset()
+
     def _get_hwnd_and_scale(self) -> tuple[int, float]:
         win = self._get_window()
         if not win or not getattr(win, "native", None):
@@ -244,7 +248,7 @@ class OverlayBridgeAPI:
                 SWP_NOACTIVATE = 0x0010
                 SWP_ASYNCWINDOWPOS = 0x4000
                 target_w = int(460 * scale)
-                target_h = int((128 if compact else 560) * scale)
+                target_h = int((136 if compact else 560) * scale)
                 ctypes.windll.user32.SetWindowPos(
                     hwnd,
                     0,
@@ -257,6 +261,27 @@ class OverlayBridgeAPI:
             except Exception:
                 pass
         return bool(compact)
+
+    def set_opacity(self, alpha_pct: int) -> int:
+        """
+        Sets native Win32 window opacity (50..100%) using WS_EX_LAYERED and
+        SetLayeredWindowAttributes so the overlay is translucent over SWTOR.
+        """
+        pct = max(50, min(100, int(alpha_pct)))
+        hwnd, _ = self._get_hwnd_and_scale()
+        if hwnd:
+            try:
+                import ctypes
+                GWL_EXSTYLE = -20
+                WS_EX_LAYERED = 0x00080000
+                LWA_ALPHA = 0x00000002
+                ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED)
+                alpha_byte = int(round((pct / 100.0) * 255))
+                ctypes.windll.user32.SetLayeredWindowAttributes(hwnd, 0, alpha_byte, LWA_ALPHA)
+            except Exception:
+                pass
+        return pct
 
     def choose_log_dir(self) -> str:
         """
@@ -437,6 +462,12 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
         with lock:
             parser.reset_all()
         return JSONResponse({"ok": True})
+
+    @app.post("/api/undo_reset")
+    def api_undo_reset():
+        with lock:
+            ok = parser.undo_reset()
+        return JSONResponse({"ok": ok})
 
     @app.get("/api/discover_dirs")
     def api_discover_dirs():

@@ -273,6 +273,9 @@ class SWTORLogParser:
         self._encounter_counter: int = 0
         self._last_timeline_bucket: int = -1
         self.session_name: str = ""
+        self._undo_encounters: List[Encounter] = []
+        self._undo_active: Optional[Encounter] = None
+        self._undo_counter: int = 0
 
         self.references: List[dict] = []
         self.active_baseline_id: Optional[str] = None
@@ -465,10 +468,25 @@ class SWTORLogParser:
         return Path(discovered[0]["path"]) if discovered else Path.home() / "Documents" / "Star Wars - The Old Republic" / "CombatLogs"
 
     def reset_all(self) -> None:
+        if self.encounters:
+            self._undo_encounters = list(self.encounters)
+            self._undo_active = self.active_encounter
+            self._undo_counter = self._encounter_counter
         self.encounters.clear()
         self.active_encounter = None
         self._encounter_counter = 0
         self._last_timeline_bucket = -1
+
+    def undo_reset(self) -> bool:
+        """Restores the session encounters cleared by the most recent reset_all() call."""
+        if not self._undo_encounters:
+            return False
+        self.encounters = list(self._undo_encounters)
+        self.active_encounter = self._undo_active
+        self._encounter_counter = max(self._encounter_counter, self._undo_counter)
+        self._undo_encounters.clear()
+        self._undo_active = None
+        return True
 
     def set_log_file(self, file_path: Path, read_from_start: bool = True) -> None:
         self.current_file = file_path
@@ -1063,6 +1081,7 @@ class SWTORLogParser:
                 "has_encounter": False,
                 "is_session_view": is_session_view,
                 "in_combat": False,
+                "can_undo_reset": bool(self._undo_encounters),
                 "log_dir": str(self.log_dir),
                 "log_file": self.current_file.name if self.current_file else "Waiting for combat_*.txt...",
                 "local_player": self.local_player_name or "Detecting...",
@@ -1101,7 +1120,12 @@ class SWTORLogParser:
                 reverse=True,
             )
             abil_data = []
+            max_hit_val = 0
+            max_hit_abil = ""
             for a in abilities_sorted:
+                if a.max_hit > max_hit_val:
+                    max_hit_val = a.max_hit
+                    max_hit_abil = a.name
                 if a.total_damage == 0 and a.total_heal == 0 and a.misses == 0:
                     continue
                 pct = (a.total_damage / c.damage_dealt * 100.0) if c.damage_dealt > 0 else 0.0
@@ -1142,6 +1166,8 @@ class SWTORLogParser:
                 "accuracy_pct": round(acc, 1),
                 "hits": c.hits,
                 "misses": c.misses,
+                "max_hit": max_hit_val,
+                "max_hit_ability": max_hit_abil,
                 "abilities": abil_data,
             }
             combatants_list.append(entry)
@@ -1152,33 +1178,45 @@ class SWTORLogParser:
         if not local_stats and combatants_list:
             local_stats = combatants_list[0]
 
+        fight_markers = []
         if is_session_view:
             sess_label = self.session_name.strip() or self.current_area
             title = f"{sess_label} ({len(self.encounters)} fights)"
+            # Never show a Boss HP bar in Session mode (fixes F2 stale 0% red HP bar)
             target_hp_info = None
-            if self.active_encounter and self.active_encounter.in_combat:
-                act_title = self.active_encounter.get_title()
-                if act_title in self.active_encounter.target_hp:
-                    cur_hp, max_hp = self.active_encounter.target_hp[act_title]
-                    target_hp_info = {
-                        "current": cur_hp,
-                        "max": max_hp,
-                        "pct": round(cur_hp / max_hp * 100.0, 1) if max_hp > 0 else 0.0,
-                    }
+            cum_t = 0.0
+            for idx, e_item in enumerate(self.encounters):
+                dur_e = e_item.duration_seconds
+                p_c = e_item.combatants.get(self.local_player_name)
+                if not p_c and e_item.combatants:
+                    p_c = max(e_item.combatants.values(), key=lambda x: x.damage_dealt, default=None)
+                e_dps = round(p_c.damage_dealt / max(dur_e, 1.0), 1) if p_c else 0.0
+                fight_markers.append({
+                    "index": idx,
+                    "id": e_item.encounter_id,
+                    "title": e_item.get_title(),
+                    "duration": e_item.formatted_duration,
+                    "start_sec": round(cum_t, 1),
+                    "end_sec": round(cum_t + dur_e, 1),
+                    "dps": e_dps,
+                })
+                cum_t += dur_e
         else:
             title = enc.get_title()
             target_hp_info = None
             if title in enc.target_hp:
                 cur_hp, max_hp = enc.target_hp[title]
-                target_hp_info = {
-                    "current": cur_hp,
-                    "max": max_hp,
-                    "pct": round(cur_hp / max_hp * 100.0, 1) if max_hp > 0 else 0.0,
-                }
+                if max_hp > 0 and (cur_hp > 0 or enc.in_combat):
+                    target_hp_info = {
+                        "current": cur_hp,
+                        "max": max_hp,
+                        "pct": round(cur_hp / max_hp * 100.0, 1),
+                    }
 
         return {
             "has_encounter": True,
             "is_session_view": is_session_view,
+            "can_undo_reset": bool(self._undo_encounters),
             "encounter_id": enc.encounter_id,
             "in_combat": enc.in_combat,
             "title": title,
@@ -1187,6 +1225,7 @@ class SWTORLogParser:
             "duration_seconds": round(dur, 1),
             "session_summary": sess_summary,
             "target_hp": target_hp_info,
+            "fight_markers": fight_markers,
             "log_dir": str(self.log_dir),
             "log_file": self.current_file.name if self.current_file else "Simulated / Loaded",
             "local_player": self.local_player_name or (local_stats["name"] if local_stats else "Player"),

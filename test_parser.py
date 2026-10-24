@@ -129,6 +129,31 @@ class TestSWTORParser(unittest.TestCase):
         self.assertEqual(saved_sess["reference"]["encounter_count"], 2)
         self.assertEqual(saved_sess["reference"]["label"], "Spirit of Vengeance 2hr Run")
 
+        # F2: Session mode never shows a stale Boss HP bar
+        self.assertIsNone(sess_snap["target_hp"])
+
+        # F7: Max Hit and ability name are exposed on local_stats
+        self.assertEqual(sess_snap["local_stats"]["max_hit"], 2000)
+        self.assertEqual(sess_snap["local_stats"]["max_hit_ability"], "Followthrough")
+
+        # F8: Session mode exposes fight_markers for chart boundaries and tooltips
+        self.assertEqual(len(sess_snap["fight_markers"]), 2)
+        self.assertEqual(sess_snap["fight_markers"][0]["title"], "Varad Churl")
+        self.assertEqual(sess_snap["fight_markers"][1]["title"], "Gorga Brak")
+
+        # F1: Reset preserves undo buffer and undo_reset() restores full session
+        parser.reset_all()
+        empty_snap = parser.get_snapshot(-2)
+        self.assertFalse(empty_snap["has_encounter"])
+        self.assertTrue(empty_snap["can_undo_reset"])
+
+        restored = parser.undo_reset()
+        self.assertTrue(restored)
+        restored_snap = parser.get_snapshot(-2)
+        self.assertTrue(restored_snap["has_encounter"])
+        self.assertEqual(restored_snap["session_summary"]["encounter_count"], 2)
+        self.assertEqual(restored_snap["local_stats"]["damage"], 5000)
+
 
 if __name__ == "__main__":
     unittest.main()

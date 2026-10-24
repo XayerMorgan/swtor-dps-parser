@@ -17,7 +17,7 @@
     --accent-emerald: #00e676;
     --accent-purple: #b388ff;
     --text-primary: #ecf3ff;
-    --text-muted: #8a9bbd;
+    --text-muted: #a8bad8;
     --font-ui: 'Segoe UI', system-ui, -apple-system, sans-serif;
     --font-mono: 'Consolas', 'JetBrains Mono', monospace;
   }
@@ -46,24 +46,48 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
+    padding: 7px 10px;
     background: linear-gradient(90deg, rgba(0, 212, 255, 0.14) 0%, rgba(18, 25, 41, 0.95) 60%);
     border-bottom: 1px solid var(--border-holo);
     flex-shrink: 0;
+    gap: 6px;
   }
 
   .brand {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    background: rgba(0, 230, 118, 0.14);
+    border: 1px solid rgba(0, 230, 118, 0.42);
+    color: #7dffbe;
+    flex-shrink: 0;
+  }
+
+  .status-pill.combat {
+    background: rgba(255, 62, 85, 0.20);
+    border-color: rgba(255, 62, 85, 0.65);
+    color: #ff9aa6;
   }
 
   .status-dot {
-    width: 9px;
-    height: 9px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    background: var(--text-muted);
-    box-shadow: 0 0 6px rgba(138, 155, 189, 0.5);
+    background: var(--accent-emerald);
+    box-shadow: 0 0 6px var(--accent-emerald);
     transition: all 0.25s ease;
   }
 
@@ -85,23 +109,33 @@
 
   .brand-title {
     font-weight: 700;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.6px;
     text-transform: uppercase;
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--accent-cyan);
+    white-space: nowrap;
   }
 
   .header-controls {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .header-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.16);
+    margin: 0 2px;
   }
 
   .btn {
     background: rgba(0, 212, 255, 0.10);
-    border: 1px solid rgba(0, 212, 255, 0.32);
+    border: 1px solid rgba(0, 212, 255, 0.34);
     color: var(--text-primary);
     padding: 4px 8px;
+    min-height: 26px;
     border-radius: 4px;
     font-size: 11px;
     font-weight: 600;
@@ -110,11 +144,21 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    white-space: nowrap;
   }
 
   .btn:hover {
     background: rgba(0, 212, 255, 0.24);
     border-color: var(--accent-cyan);
+  }
+
+  .btn:focus-visible,
+  .tab:focus-visible,
+  .encounter-select:focus-visible,
+  .path-input:focus-visible,
+  .cand-item:focus-visible {
+    outline: 2px solid var(--accent-cyan);
+    outline-offset: 2px;
   }
 
   .btn.active {
@@ -127,6 +171,42 @@
     background: rgba(255, 62, 85, 0.22);
     border-color: var(--accent-crimson);
     color: #ff8a98;
+  }
+
+  .btn.btn-danger {
+    background: rgba(255, 62, 85, 0.10);
+    border-color: rgba(255, 62, 85, 0.48);
+    color: #ffa6b0;
+  }
+
+  .btn.btn-danger:hover {
+    background: rgba(255, 62, 85, 0.26);
+    border-color: var(--accent-crimson);
+    color: #ffffff;
+  }
+
+  .btn.btn-danger.confirming {
+    background: rgba(255, 62, 85, 0.38);
+    border-color: #ff3e55;
+    color: #ffffff;
+    box-shadow: 0 0 8px rgba(255, 62, 85, 0.45);
+  }
+
+  .btn.btn-undo {
+    background: rgba(0, 230, 118, 0.20);
+    border-color: var(--accent-emerald);
+    color: #7dffbe;
+  }
+
+  .btn.btn-save {
+    background: rgba(0, 230, 118, 0.14);
+    border-color: rgba(0, 230, 118, 0.48);
+    color: #8affc4;
+  }
+
+  .btn.btn-save:hover {
+    background: rgba(0, 230, 118, 0.26);
+    border-color: var(--accent-emerald);
   }
 
   /* Hero KPI Banner */
@@ -306,6 +386,20 @@
   }
 
   /* Meter Bars (Abilities / Group) */
+  .meter-col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 8px 4px;
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 4px;
+  }
+
   .meter-list {
     display: flex;
     flex-direction: column;
@@ -336,17 +430,17 @@
     left: 0;
     top: 0;
     bottom: 0;
-    background: linear-gradient(90deg, rgba(0, 212, 255, 0.32), rgba(0, 212, 255, 0.10));
+    background: linear-gradient(90deg, rgba(0, 148, 196, 0.34), rgba(0, 148, 196, 0.08));
     z-index: 0;
     transition: width 0.2s ease;
   }
 
   .meter-fill.local-player {
-    background: linear-gradient(90deg, rgba(255, 184, 0, 0.36), rgba(255, 184, 0, 0.08));
+    background: linear-gradient(90deg, rgba(255, 184, 0, 0.32), rgba(255, 184, 0, 0.08));
   }
 
   .meter-fill.heal-bar {
-    background: linear-gradient(90deg, rgba(0, 230, 118, 0.32), rgba(0, 230, 118, 0.08));
+    background: linear-gradient(90deg, rgba(0, 230, 118, 0.28), rgba(0, 230, 118, 0.08));
   }
 
   .meter-left {
@@ -362,7 +456,7 @@
   .rank-num {
     font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--text-muted);
+    color: #c4d4ec;
     width: 16px;
   }
 
@@ -371,14 +465,17 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
   }
 
   .meter-badge {
     font-size: 10px;
+    font-weight: 600;
     padding: 1px 5px;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-muted);
+    background: rgba(6, 10, 20, 0.82);
+    border: 1px solid rgba(0, 212, 255, 0.28);
+    color: #e6f1ff;
   }
 
   .meter-right {
@@ -393,8 +490,9 @@
   }
 
   .stat-muted {
-    color: var(--text-muted);
+    color: #c4d4ec;
     font-size: 10.5px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
   }
 
   .stat-highlight {
@@ -406,6 +504,7 @@
 
   /* Sparkline Graph Container */
   .chart-box {
+    position: relative;
     background: rgba(10, 14, 24, 0.72);
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 5px;
@@ -425,8 +524,25 @@
 
   canvas#dpsCanvas {
     width: 100%;
-    height: 70px;
+    height: 76px;
     display: block;
+    cursor: crosshair;
+  }
+
+  .chart-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(6, 10, 20, 0.96);
+    border: 1px solid var(--accent-cyan);
+    border-radius: 4px;
+    padding: 4px 7px;
+    font-size: 10.5px;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.65);
+    z-index: 10;
+    display: none;
+    white-space: nowrap;
   }
 
   /* Help & Guide Styling */
@@ -793,23 +909,32 @@
   <!-- Header -->
   <div class="header">
     <div class="brand">
-      <div id="statusDot" class="status-dot ready"></div>
+      <span id="statusBadge" class="status-pill" title="Watching SWTOR CombatLogs folder">
+        <span id="statusDot" class="status-dot ready"></span>
+        <span id="statusText">LIVE</span>
+      </span>
       <span class="brand-title">SWTOR Holocron DPS</span>
     </div>
     <div class="header-controls">
       <button id="btnSim" class="btn" onclick="toggleSimulation()" title="Run/Stop Live Combat Log Simulation">⚡ Demo</button>
-      <button id="btnReset" class="btn" onclick="resetEncounters()" title="Clear Encounter History">↺ Reset</button>
-      <button id="btnFolder" class="btn" onclick="switchTab('settings')" title="Select or Auto-Detect CombatLogs Folder">📂 Folder</button>
-      <button id="btnCompact" class="btn" onclick="toggleCompact()" title="Toggle Mini HUD Mode">▣ Mini</button>
+      <button id="btnCompact" class="btn" onclick="toggleCompact()" title="Toggle Compact Mini HUD Mode (DPS, Crit, APM & Baseline Delta)">▣ Mini</button>
+      <button id="btnAutoMini" class="btn" onclick="toggleAutoMini()" title="Automatically switch to Mini HUD when entering combat and expand after combat">⚡ Auto-Mini</button>
+      <button id="btnOpacity" class="btn" onclick="cycleOpacity()" title="Cycle Overlay Transparency (100% / 85% / 70%)">◐ 100%</button>
       <button id="btnPin" class="btn active" onclick="togglePin()" title="Keep Window Always On Top of SWTOR">📌 Pin</button>
-      <button id="btnHelp" class="btn" onclick="openHelpGuide()" title="Open Full Illustrated Setup & Help Guide">❓ Help</button>
+      <button id="btnHelp" class="btn" onclick="openHelpGuide()" title="Open Illustrated HTML Setup Manual in Browser">📖 Manual</button>
+      <div class="header-divider" aria-hidden="true"></div>
+      <button id="btnUndoReset" class="btn btn-undo" style="display: none;" onclick="undoResetEncounters()" title="Restore the session encounters cleared by Reset">↩ Undo Reset</button>
+      <button id="btnReset" class="btn btn-danger" onclick="requestResetEncounters()" title="Clear Session & Encounter History (Requires Confirmation)">↺ Reset</button>
     </div>
   </div>
 
   <!-- Hero KPI Banner -->
   <div class="hero-banner">
     <div class="kpi-card primary">
-      <div class="kpi-label">Personal DPS</div>
+      <div class="kpi-label" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>Personal DPS</span>
+        <span id="kpiMiniDelta" class="delta-pill delta-neutral" style="display: none;"></span>
+      </div>
       <div id="kpiDps" class="kpi-value">0</div>
       <div id="kpiTotalDmg" class="kpi-sub">0 total dmg</div>
     </div>
@@ -824,9 +949,9 @@
       <div id="kpiHits" class="kpi-sub">0 hits</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">HPS / DTPS</div>
-      <div id="kpiHps" class="kpi-value" style="color: var(--accent-emerald);">0</div>
-      <div id="kpiDtps" class="kpi-sub">0 DTPS</div>
+      <div id="kpiCard4Label" class="kpi-label">Max Hit / Taken</div>
+      <div id="kpiHps" class="kpi-value" style="color: var(--accent-cyan);">0</div>
+      <div id="kpiDtps" class="kpi-sub">Taken: 0/s</div>
     </div>
   </div>
 
@@ -834,12 +959,12 @@
   <div class="encounter-bar">
     <button id="btnModeSession" class="btn btn-xs active" onclick="setEncounterMode(-2)" title="Aggregate ALL encounters & skills across your entire play session (Time-to-Date)">📊 Session</button>
     <button id="btnModeFight" class="btn btn-xs" onclick="setEncounterMode(-1)" title="View only the current or latest individual NPC fight">⚔️ Fight</button>
-    <select id="encounterSelect" class="encounter-select" onchange="onSelectEncounter()">
+    <select id="encounterSelect" class="encounter-select" aria-label="Select Session or Individual Fight" onchange="onSelectEncounter()">
       <option value="-2">📊 Full Session Total (Time to Date)</option>
       <option value="-1">⚔️ Current / Latest Fight Only</option>
     </select>
-    <button id="btnQuickSaveRef" class="btn btn-xs" onclick="quickSaveReference()" title="Save Full Session or Current Fight to History">💾 Save Session</button>
-    <div id="timerBadge" class="timer-badge" title="Active Combat Time | Total Session Span">00:00</div>
+    <button id="btnQuickSaveRef" class="btn btn-xs btn-save" onclick="quickSaveReference()" title="Save Full Session or Current Fight to Persistent History">💾 Save Session</button>
+    <div id="timerBadge" class="timer-badge" title="Active Combat Time vs Total Session Span">Combat 00:00</div>
   </div>
 
   <!-- Active Baseline Comparison Bar -->
@@ -851,12 +976,12 @@
     </div>
     <div class="baseline-deltas">
       <span id="baseDeltaDps" class="delta-pill delta-neutral">0/s</span>
-      <span id="baseDeltaCrit" class="delta-pill delta-neutral">0.0%c</span>
+      <span id="baseDeltaCrit" class="delta-pill delta-neutral">0.0% crit</span>
       <button class="btn btn-xs" onclick="clearActiveBaseline()" title="Clear Active Baseline Comparison">×</button>
     </div>
   </div>
 
-  <!-- Boss / Dummy HP Bar -->
+  <!-- Boss / Dummy HP Bar (Single-Fight Mode Only) -->
   <div id="bossHpWrap" class="boss-hp-wrap">
     <div class="boss-hp-header">
       <span id="bossHpName">Target</span>
@@ -868,12 +993,12 @@
   </div>
 
   <!-- Tabs -->
-  <div class="tabs">
-    <div class="tab active" data-tab="abilities" onclick="switchTab('abilities')">Abilities</div>
-    <div class="tab" data-tab="group" onclick="switchTab('group')">Group DPS</div>
-    <div class="tab" data-tab="healing" onclick="switchTab('healing')">Heal & Tank</div>
-    <div class="tab" data-tab="history" onclick="switchTab('history')">📈 History <span id="refCountBadge" class="meter-badge" style="display:none;">0</span></div>
-    <div class="tab" data-tab="settings" onclick="switchTab('settings')">❓ Setup</div>
+  <div class="tabs" role="tablist" aria-label="DPS Parser Views">
+    <div class="tab active" role="tab" tabindex="0" aria-selected="true" data-tab="abilities" onclick="switchTab('abilities')" onkeydown="onTabKeydown(event, 'abilities')">Abilities</div>
+    <div class="tab" role="tab" tabindex="0" aria-selected="false" data-tab="group" onclick="switchTab('group')" onkeydown="onTabKeydown(event, 'group')">Group DPS</div>
+    <div class="tab" role="tab" tabindex="0" aria-selected="false" data-tab="healing" onclick="switchTab('healing')" onkeydown="onTabKeydown(event, 'healing')">Heal &amp; Tank</div>
+    <div class="tab" role="tab" tabindex="0" aria-selected="false" data-tab="history" onclick="switchTab('history')" onkeydown="onTabKeydown(event, 'history')">📈 History <span id="refCountBadge" class="meter-badge" style="display:none;">0</span></div>
+    <div class="tab" role="tab" tabindex="0" aria-selected="false" data-tab="settings" onclick="switchTab('settings')" onkeydown="onTabKeydown(event, 'settings')">⚙️ Setup &amp; Folder</div>
   </div>
 
   <!-- Main Content -->
@@ -882,21 +1007,34 @@
     <div id="tab-abilities" class="tab-pane">
       <div class="chart-box">
         <div class="chart-header">
-          <span>Real-Time DPS Curve</span>
+          <span id="chartTitleLabel">Real-Time DPS Curve</span>
           <span id="chartPeakLabel">Peak: 0 DPS</span>
         </div>
-        <canvas id="dpsCanvas" width="420" height="70"></canvas>
+        <canvas id="dpsCanvas" width="420" height="76"></canvas>
+        <div id="chartTooltip" class="chart-tooltip"></div>
+      </div>
+      <div id="abilityColHeader" class="meter-col-header">
+        <span># · Skill · Share %</span>
+        <span>Hits · Crit % · Total Dmg · DPS</span>
       </div>
       <div id="abilityList" class="meter-list"></div>
     </div>
 
     <!-- Tab: Group Raid DPS -->
     <div id="tab-group" class="tab-pane" style="display: none;">
+      <div class="meter-col-header">
+        <span># · Combatant · Discipline</span>
+        <span>Crit % · APM · Total Dmg · DPS</span>
+      </div>
       <div id="groupList" class="meter-list"></div>
     </div>
 
     <!-- Tab: Healing & Tank -->
     <div id="tab-healing" class="tab-pane" style="display: none;">
+      <div class="meter-col-header">
+        <span># · Combatant</span>
+        <span>Damage Taken (DTPS) · Healing (HPS)</span>
+      </div>
       <div id="healingList" class="meter-list"></div>
     </div>
 
@@ -1023,10 +1161,15 @@
   </div>
 
 <script>
+  const TAB_ORDER = ['abilities', 'group', 'healing', 'history', 'settings'];
   let currentTab = 'abilities';
   let selectedEncounterIdx = -2; // Default to Full Session Total (Time-to-Date) so stats accumulate across pulls!
   let isPinned = true;
   let isCompact = false;
+  let autoMiniInCombat = false;
+  let lastAutoMiniCombatState = false;
+  let opacityLevels = [100, 85, 70];
+  let opacityIdx = 0;
   let isSimRunning = false;
   let lastSnapshot = null;
   let fetchInFlight = false;
@@ -1034,10 +1177,21 @@
   let activeBaselineId = null;
   let expandedRefId = null;
   let renamingRefId = null;
+  let resetConfirmTimer = null;
+  let resetConfirmPending = false;
+  let undoBannerExpireAt = 0;
+  let chartInteractiveState = { timeline: [], markers: [], maxVal: 100, totalSecs: 0 };
 
   function fmtNum(n) {
     if (n === undefined || n === null) return '0';
     return Math.round(n).toLocaleString('en-US');
+  }
+
+  function fmtSecs(sec) {
+    const s = Math.max(0, Math.round(sec || 0));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
   }
 
   function escHtml(str) {
@@ -1048,9 +1202,11 @@
   function switchTab(tabName) {
     currentTab = tabName;
     document.querySelectorAll('.tab').forEach(el => {
-      el.classList.toggle('active', el.dataset.tab === tabName);
+      const isAct = el.dataset.tab === tabName;
+      el.classList.toggle('active', isAct);
+      el.setAttribute('aria-selected', isAct ? 'true' : 'false');
     });
-    ['abilities', 'group', 'healing', 'history', 'settings'].forEach(t => {
+    TAB_ORDER.forEach(t => {
       const pane = document.getElementById('tab-' + t);
       if (pane) pane.style.display = (t === tabName) ? 'block' : 'none';
     });
@@ -1062,6 +1218,21 @@
     if (lastSnapshot) renderSnapshot(lastSnapshot);
   }
 
+  function onTabKeydown(ev, tabName) {
+    if (ev.key === 'Enter' || ev.key === ' ') {
+      ev.preventDefault();
+      switchTab(tabName);
+    } else if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') {
+      ev.preventDefault();
+      const idx = TAB_ORDER.indexOf(tabName);
+      const nextIdx = (idx + (ev.key === 'ArrowRight' ? 1 : TAB_ORDER.length - 1)) % TAB_ORDER.length;
+      const nextTab = TAB_ORDER[nextIdx];
+      switchTab(nextTab);
+      const nextEl = document.querySelector(`.tab[data-tab="${nextTab}"]`);
+      if (nextEl) nextEl.focus();
+    }
+  }
+
   function syncModeButtons() {
     const isSess = (selectedEncounterIdx === -2);
     const btnSess = document.getElementById('btnModeSession');
@@ -1069,7 +1240,7 @@
     const btnQuick = document.getElementById('btnQuickSaveRef');
     if (btnSess) btnSess.classList.toggle('active', isSess);
     if (btnFight) btnFight.classList.toggle('active', !isSess);
-    if (btnQuick) {
+    if (btnQuick && !btnQuick.dataset.justSaved) {
       btnQuick.textContent = isSess ? '💾 Save Session' : '⭐ Save Fight';
     }
   }
@@ -1089,34 +1260,59 @@
     fetchSnapshot();
   }
 
-  function drawSparkline(timeline) {
+  function drawSparkline(timeline, fightMarkers, totalSecs) {
     const canvas = document.getElementById('dpsCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const w = canvas.width;
     const h = canvas.height;
+    const plotBottom = h - 14;
     ctx.clearRect(0, 0, w, h);
 
     if (!timeline || timeline.length < 2) {
-      ctx.fillStyle = 'rgba(138, 155, 189, 0.35)';
+      chartInteractiveState = { timeline: [], markers: [], maxVal: 100, totalSecs: 0 };
+      ctx.fillStyle = 'rgba(168, 186, 216, 0.45)';
       ctx.font = '11px Segoe UI';
-      ctx.fillText('Waiting for combat data...', 12, h / 2 + 4);
+      ctx.fillText('Waiting for combat data...', 12, h / 2);
       document.getElementById('chartPeakLabel').textContent = 'Peak: 0 DPS';
       return;
     }
 
     const values = timeline.map(pt => pt[1]);
     const maxVal = Math.max(...values, 100);
-    document.getElementById('chartPeakLabel').textContent = 'Peak: ' + fmtNum(maxVal) + ' DPS';
+    const maxTime = Math.max(totalSecs || 0, timeline[timeline.length - 1][0] || 1, 1);
+    chartInteractiveState = { timeline, markers: fightMarkers || [], maxVal, totalSecs: maxTime };
 
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    const markerInfo = (fightMarkers && fightMarkers.length > 1)
+      ? ` · ${fightMarkers.length} Fights (hover/click)`
+      : '';
+    document.getElementById('chartPeakLabel').textContent = `Peak: ${fmtNum(maxVal)} DPS${markerInfo}`;
+
+    // Draw fight boundary vertical markers in Session mode (F8)
+    if (fightMarkers && fightMarkers.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 184, 0, 0.26)';
+      ctx.setLineDash([2, 3]);
+      ctx.lineWidth = 1;
+      fightMarkers.forEach((fm, idx) => {
+        if (idx === 0) return;
+        const x = (fm.start_sec / maxTime) * (w - 12) + 6;
+        ctx.beginPath();
+        ctx.moveTo(x, 2);
+        ctx.lineTo(x, plotBottom);
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+
+    const grad = ctx.createLinearGradient(0, 0, 0, plotBottom);
     grad.addColorStop(0, 'rgba(0, 212, 255, 0.42)');
     grad.addColorStop(1, 'rgba(0, 212, 255, 0.02)');
 
     ctx.beginPath();
     timeline.forEach((pt, i) => {
-      const x = (i / (timeline.length - 1)) * (w - 8) + 4;
-      const y = h - 6 - ((pt[1] / maxVal) * (h - 14));
+      const x = (i / (timeline.length - 1)) * (w - 12) + 6;
+      const y = plotBottom - 2 - ((pt[1] / maxVal) * (plotBottom - 8));
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
@@ -1125,16 +1321,34 @@
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.lineTo(w - 4, h - 2);
-    ctx.lineTo(4, h - 2);
+    ctx.lineTo(w - 6, plotBottom);
+    ctx.lineTo(6, plotBottom);
     ctx.closePath();
     ctx.fillStyle = grad;
     ctx.fill();
+
+    // Draw time axis baseline & labels (0:00 -> mid -> end) (F8)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(6, plotBottom);
+    ctx.lineTo(w - 6, plotBottom);
+    ctx.stroke();
+
+    ctx.fillStyle = '#a8bad8';
+    ctx.font = '9.5px Consolas, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('00:00', 6, h - 2);
+    ctx.textAlign = 'center';
+    ctx.fillText(fmtSecs(maxTime / 2), w / 2, h - 2);
+    ctx.textAlign = 'right';
+    ctx.fillText(fmtSecs(maxTime), w - 6, h - 2);
   }
 
   function updateBaselineBanner(snap) {
     const bar = document.getElementById('baselineBar');
     const badge = document.getElementById('refCountBadge');
+    const miniDelta = document.getElementById('kpiMiniDelta');
     const refCount = snap.references_count || savedReferences.length || 0;
     if (badge) {
       badge.style.display = refCount > 0 ? 'inline-block' : 'none';
@@ -1144,6 +1358,7 @@
     const base = snap.active_baseline;
     if (!base) {
       bar.classList.remove('visible');
+      if (miniDelta) miniDelta.style.display = 'none';
       return;
     }
     bar.classList.add('visible');
@@ -1157,7 +1372,12 @@
       dDpsEl.className = 'delta-pill delta-neutral';
       dDpsEl.textContent = 'vs Live';
       dCritEl.className = 'delta-pill delta-neutral';
-      dCritEl.textContent = `${(base.crit_pct || 0).toFixed(1)}%c`;
+      dCritEl.textContent = `${(base.crit_pct || 0).toFixed(1)}% crit`;
+      if (miniDelta) {
+        miniDelta.style.display = 'inline-block';
+        miniDelta.className = 'delta-pill delta-neutral';
+        miniDelta.textContent = `Ref ${fmtNum(base.dps)}/s`;
+      }
       return;
     }
 
@@ -1166,24 +1386,60 @@
     const pctDps = (base.dps > 0) ? (diffDps / base.dps) * 100.0 : 0.0;
     const signDps = diffDps >= 0 ? '+' : '';
     const arrow = diffDps > 5 ? '▲' : (diffDps < -5 ? '▼' : '•');
-    dDpsEl.className = 'delta-pill ' + (diffDps > 5 ? 'delta-pos' : (diffDps < -5 ? 'delta-neg' : 'delta-neutral'));
+    const deltaCls = diffDps > 5 ? 'delta-pos' : (diffDps < -5 ? 'delta-neg' : 'delta-neutral');
+    dDpsEl.className = 'delta-pill ' + deltaCls;
     dDpsEl.textContent = `${signDps}${fmtNum(diffDps)}/s (${signDps}${pctDps.toFixed(1)}%) ${arrow}`;
+
+    if (miniDelta) {
+      miniDelta.style.display = 'inline-block';
+      miniDelta.className = 'delta-pill ' + deltaCls;
+      miniDelta.textContent = `${signDps}${fmtNum(diffDps)}/s ${arrow}`;
+      miniDelta.title = `vs Baseline "${base.label || base.target}" (${fmtNum(base.dps)}/s)`;
+    }
 
     const diffCrit = (p.crit_pct || 0) - (base.crit_pct || 0);
     const signCrit = diffCrit >= 0 ? '+' : '';
     dCritEl.className = 'delta-pill ' + (diffCrit > 0.5 ? 'delta-pos' : (diffCrit < -0.5 ? 'delta-neg' : 'delta-neutral'));
-    dCritEl.textContent = `${signCrit}${diffCrit.toFixed(1)}%c`;
+    dCritEl.textContent = `${signCrit}${diffCrit.toFixed(1)}% crit`;
   }
 
   function renderSnapshot(snap) {
     lastSnapshot = snap;
     updateBaselineBanner(snap);
 
+    // Status pill with text + color (F10 WCAG 1.4.1)
+    const badge = document.getElementById('statusBadge');
     const dot = document.getElementById('statusDot');
-    dot.className = 'status-dot ' + (snap.in_combat ? 'combat' : 'ready');
+    const statusTxt = document.getElementById('statusText');
+    const inCombat = Boolean(snap.in_combat);
+    dot.className = 'status-dot ' + (inCombat ? 'combat' : 'ready');
+    if (badge) {
+      badge.className = 'status-pill ' + (inCombat ? 'combat' : 'ready');
+      badge.title = inCombat
+        ? `In Combat — Reading ${snap.log_file || 'combat log'}`
+        : `Watching ${snap.log_file || 'SWTOR CombatLogs folder'}`;
+    }
+    if (statusTxt) {
+      statusTxt.textContent = inCombat ? 'COMBAT' : (isSimRunning ? 'DEMO' : 'LIVE');
+    }
+
+    // Undo Reset button visibility (F1)
+    const undoBtn = document.getElementById('btnUndoReset');
+    if (undoBtn) {
+      const showUndo = Boolean(snap.can_undo_reset) && (Date.now() < undoBannerExpireAt);
+      undoBtn.style.display = showUndo ? 'inline-flex' : 'none';
+    }
+
+    // Auto-Mini in Combat (F3)
+    if (autoMiniInCombat && inCombat !== lastAutoMiniCombatState) {
+      lastAutoMiniCombatState = inCombat;
+      setCompactState(inCombat);
+    } else {
+      lastAutoMiniCombatState = inCombat;
+    }
 
     document.getElementById('footerFile').textContent = snap.log_file || 'Waiting for combat_*.txt...';
-    const specTxt = snap.discipline ? ` (${snap.discipline})` : '';
+    const specTxt = snap.discipline ? `, ${snap.discipline}` : '';
     document.getElementById('footerPlayer').textContent = (snap.local_player || 'Detecting...') + specTxt;
     const pathInp = document.getElementById('customPathInput');
     if (pathInp && document.activeElement !== pathInp) {
@@ -1195,7 +1451,7 @@
     const sessSum = snap.session_summary || { encounter_count: encList.length, combat_duration: '00:00', session_span: '00:00' };
     const prevValue = selectedEncounterIdx;
     const sessLabel = sessSum.encounter_count > 0
-      ? `📊 Full Session (${sessSum.encounter_count} fights · ${sessSum.combat_duration} combat / ${sessSum.session_span} span)`
+      ? `📊 Full Session (${sessSum.encounter_count} fights · Combat ${sessSum.combat_duration} / Span ${sessSum.session_span})`
       : `📊 Full Session Total (Time to Date)`;
     let htmlOpts = `<option value="-2">${sessLabel}</option>`;
     htmlOpts += `<option value="-1">⚔️ Current / Latest Fight Only</option>`;
@@ -1210,6 +1466,8 @@
     }
     syncModeButtons();
 
+    const abilHeader = document.getElementById('abilityColHeader');
+
     if (!snap.has_encounter || !snap.local_stats) {
       document.getElementById('kpiDps').textContent = '0';
       document.getElementById('kpiTotalDmg').textContent = '0 total dmg';
@@ -1217,27 +1475,36 @@
       document.getElementById('kpiAcc').textContent = '100.0% acc';
       document.getElementById('kpiApm').textContent = '0.0';
       document.getElementById('kpiHits').textContent = '0 hits';
+      document.getElementById('kpiCard4Label').textContent = 'Max Hit / Taken';
       document.getElementById('kpiHps').textContent = '0';
-      document.getElementById('kpiDtps').textContent = '0 DTPS';
-      document.getElementById('timerBadge').textContent = '00:00';
+      document.getElementById('kpiDtps').textContent = 'Taken: 0/s';
+      document.getElementById('timerBadge').textContent = 'Combat 00:00';
       document.getElementById('bossHpWrap').classList.remove('visible');
+      if (abilHeader) abilHeader.style.display = 'none';
+
+      const undoCallout = snap.can_undo_reset
+        ? `<button class="btn btn-undo" onclick="undoResetEncounters()">↩ Undo Last Reset</button>`
+        : '';
 
       const emptyHtml = `
         <div class="empty-state">
           <h3>Ready for Combat</h3>
           <p>Start fighting in SWTOR (with Combat Logging enabled) or click <strong>⚡ Demo</strong> above to test live DPS parsing right now.</p>
           <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
+            ${undoCallout}
             <button class="btn" onclick="loadSampleParse()">📊 Load Sample Parse</button>
             <button class="btn" onclick="switchTab('history')">📈 View Saved History</button>
-            <button class="btn" onclick="switchTab('settings')">❓ Setup Guide</button>
+            <button class="btn" onclick="switchTab('settings')">⚙️ Setup &amp; Folder</button>
           </div>
         </div>`;
       document.getElementById('abilityList').innerHTML = emptyHtml;
       document.getElementById('groupList').innerHTML = emptyHtml;
       document.getElementById('healingList').innerHTML = emptyHtml;
-      drawSparkline([]);
+      drawSparkline([], [], 0);
       return;
     }
+
+    if (abilHeader) abilHeader.style.display = 'flex';
 
     const p = snap.local_stats;
     document.getElementById('kpiDps').textContent = fmtNum(p.dps);
@@ -1245,21 +1512,39 @@
     document.getElementById('kpiCrit').textContent = `${p.crit_pct.toFixed(1)}%`;
     document.getElementById('kpiAcc').textContent = `${p.accuracy_pct.toFixed(1)}% acc`;
     document.getElementById('kpiApm').textContent = p.apm.toFixed(1);
-    document.getElementById('kpiHits').textContent = `${p.hits} hits`;
-    document.getElementById('kpiHps').textContent = fmtNum(p.hps);
-    document.getElementById('kpiDtps').textContent = `${fmtNum(p.dtps)} DTPS`;
+    document.getElementById('kpiHits').textContent = `${fmtNum(p.hits)} hits`;
 
-    const timerEl = document.getElementById('timerBadge');
-    if (snap.is_session_view && sessSum.encounter_count > 1 && sessSum.session_span !== snap.duration) {
-      timerEl.textContent = `${snap.duration} (${sessSum.session_span})`;
-      timerEl.title = `Active Combat Time: ${snap.duration} | Total Session Time-to-Date: ${sessSum.session_span} (${sessSum.encounter_count} fights)`;
+    // Smart 4th KPI Card (F7): Show HPS for Healers, or Max Hit / Taken for DPS & Tanks
+    const card4Lbl = document.getElementById('kpiCard4Label');
+    const card4Val = document.getElementById('kpiHps');
+    const card4Sub = document.getElementById('kpiDtps');
+    if ((p.heal || 0) > (p.damage || 0)) {
+      card4Lbl.textContent = 'HPS / Taken';
+      card4Val.style.color = 'var(--accent-emerald)';
+      card4Val.textContent = fmtNum(p.hps);
+      card4Sub.textContent = `Taken: ${fmtNum(p.dtps)}/s`;
     } else {
-      timerEl.textContent = snap.duration;
-      timerEl.title = `Combat Duration: ${snap.duration}`;
+      card4Lbl.textContent = 'Max Hit / Taken';
+      card4Val.style.color = 'var(--accent-cyan)';
+      card4Val.textContent = fmtNum(p.max_hit || 0);
+      const maxAbilShort = p.max_hit_ability ? `${p.max_hit_ability} · ` : '';
+      card4Sub.textContent = `${maxAbilShort}${fmtNum(p.dtps)} DTPS`;
+      card4Sub.title = `Largest Single Hit: ${fmtNum(p.max_hit || 0)} (${p.max_hit_ability || 'N/A'}) | Damage Taken: ${fmtNum(p.dtps)}/s | Self-Heal: ${fmtNum(p.hps)}/s`;
     }
 
+    // Explicitly labeled Timer Badge (F6)
+    const timerEl = document.getElementById('timerBadge');
+    if (snap.is_session_view && sessSum.encounter_count > 1 && sessSum.session_span !== snap.duration) {
+      timerEl.textContent = `Combat ${snap.duration} · Span ${sessSum.session_span}`;
+      timerEl.title = `Active Combat Time: ${snap.duration} | Total Session Span: ${sessSum.session_span} (${sessSum.encounter_count} fights)`;
+    } else {
+      timerEl.textContent = `Combat ${snap.duration}`;
+      timerEl.title = `Active Combat Duration: ${snap.duration}`;
+    }
+
+    // Hide Boss HP Bar in Session mode and when target is dead out of combat (F2)
     const hpWrap = document.getElementById('bossHpWrap');
-    if (snap.target_hp && snap.target_hp.max > 0) {
+    if (!snap.is_session_view && snap.target_hp && snap.target_hp.max > 0 && (snap.target_hp.current > 0 || snap.in_combat)) {
       hpWrap.classList.add('visible');
       document.getElementById('bossHpName').textContent = snap.title;
       document.getElementById('bossHpText').textContent = `${fmtNum(snap.target_hp.current)} / ${fmtNum(snap.target_hp.max)} (${snap.target_hp.pct}%)`;
@@ -1268,7 +1553,13 @@
       hpWrap.classList.remove('visible');
     }
 
-    drawSparkline(snap.timeline || []);
+    const chartTitle = document.getElementById('chartTitleLabel');
+    if (chartTitle) {
+      chartTitle.textContent = snap.is_session_view
+        ? `Session DPS Curve (${sessSum.encounter_count || 1} Fights)`
+        : `Fight DPS Curve (${snap.title || 'Current'})`;
+    }
+    drawSparkline(snap.timeline || [], snap.fight_markers || [], snap.duration_seconds || 0);
 
     // Build ability lookup from active baseline if present
     const baseAbilMap = {};
@@ -1292,16 +1583,16 @@
         deltaBadge = `<span class="delta-pill ${cls}" title="vs Baseline (${fmtNum(baseAbilMap[a.name].dps)}/s)">${sign}${fmtNum(diff)}</span>`;
       }
       abilHtml += `
-        <div class="meter-row" title="Max Hit: ${fmtNum(a.max_hit)} | Avg Hit: ${fmtNum(a.avg_hit)} | Type: ${a.type}">
+        <div class="meter-row" title="${escHtml(a.name)} — Share: ${a.pct.toFixed(1)}% | Hits: ${a.hits} | Crits: ${a.crits} (${a.crit_pct.toFixed(1)}%) | Max Hit: ${fmtNum(a.max_hit)} | Avg Hit: ${fmtNum(a.avg_hit)}">
           <div class="meter-fill" style="width: ${barWidth.toFixed(1)}%;"></div>
           <div class="meter-left">
             <span class="rank-num">${idx + 1}.</span>
             <span class="meter-name">${escHtml(a.name)}</span>
-            <span class="meter-badge">${a.pct.toFixed(1)}%</span>
+            <span class="meter-badge" title="Share of Total Damage">${a.pct.toFixed(1)}%</span>
             ${deltaBadge}
           </div>
           <div class="meter-right">
-            <span class="stat-muted">${a.hits}h · ${a.crit_pct.toFixed(0)}%c</span>
+            <span class="stat-muted">${a.hits} hits · ${a.crit_pct.toFixed(0)}% crit</span>
             <span class="stat-muted">${fmtNum(a.total_damage)}</span>
             <span class="stat-highlight">${fmtNum(a.dps)}/s</span>
           </div>
@@ -1324,7 +1615,7 @@
             ${c.discipline ? `<span class="meter-badge">${escHtml(c.discipline)}</span>` : ''}
           </div>
           <div class="meter-right">
-            <span class="stat-muted">${c.crit_pct.toFixed(1)}%c · ${c.apm.toFixed(0)} APM</span>
+            <span class="stat-muted">${c.crit_pct.toFixed(1)}% crit · ${c.apm.toFixed(0)} APM</span>
             <span class="stat-muted">${fmtNum(c.damage)}</span>
             <span class="stat-highlight">${fmtNum(c.dps)}/s</span>
           </div>
@@ -1342,7 +1633,7 @@
             <span class="meter-name">${escHtml(c.name)}</span>
           </div>
           <div class="meter-right">
-            <span class="stat-muted" style="color: #ff9aa6;">Taken: ${fmtNum(c.dtps)}/s</span>
+            <span class="stat-muted" style="color: #ffb3bc;">Taken: ${fmtNum(c.dtps)}/s</span>
             <span class="stat-highlight" style="color: var(--accent-emerald);">${fmtNum(c.hps)} HPS</span>
           </div>
         </div>`;
@@ -1415,14 +1706,15 @@
       res = await resp.json();
     }
     if (res && res.ok) {
-      syncReferencesState(res);
-      const orig = btn.textContent;
+      btn.dataset.justSaved = '1';
       btn.textContent = '✓ Saved!';
       btn.classList.add('active');
+      syncReferencesState(res);
       setTimeout(() => {
-        btn.textContent = orig;
+        delete btn.dataset.justSaved;
         btn.classList.remove('active');
-      }, 1500);
+        syncModeButtons();
+      }, 2000);
     } else {
       switchTab('history');
       const statusEl = document.getElementById('refSaveStatus');
@@ -1893,12 +2185,59 @@
     fetchSnapshot();
   }
 
+  function requestResetEncounters() {
+    const btn = document.getElementById('btnReset');
+    const hasData = lastSnapshot && lastSnapshot.has_encounter;
+    if (!hasData) {
+      resetEncounters();
+      return;
+    }
+    if (!resetConfirmPending) {
+      resetConfirmPending = true;
+      if (btn) {
+        btn.classList.add('confirming');
+        btn.textContent = '⚠ Confirm?';
+        btn.title = 'Click again within 4s to clear unsaved session data (you can Undo for 15s after)';
+      }
+      if (resetConfirmTimer) clearTimeout(resetConfirmTimer);
+      resetConfirmTimer = setTimeout(() => {
+        resetConfirmPending = false;
+        if (btn) {
+          btn.classList.remove('confirming');
+          btn.textContent = '↺ Reset';
+          btn.title = 'Clear Session & Encounter History (Requires Confirmation)';
+        }
+      }, 4000);
+      return;
+    }
+    resetConfirmPending = false;
+    if (resetConfirmTimer) clearTimeout(resetConfirmTimer);
+    if (btn) {
+      btn.classList.remove('confirming');
+      btn.textContent = '↺ Reset';
+      btn.title = 'Clear Session & Encounter History (Requires Confirmation)';
+    }
+    resetEncounters();
+  }
+
   async function resetEncounters() {
     if (window.pywebview && window.pywebview.api) {
       await window.pywebview.api.reset_encounters();
     } else {
       await fetch('/api/reset', { method: 'POST' });
     }
+    undoBannerExpireAt = Date.now() + 15000;
+    selectedEncounterIdx = -2;
+    fetchSnapshot();
+  }
+
+  async function undoResetEncounters() {
+    if (window.pywebview && window.pywebview.api) {
+      await window.pywebview.api.undo_reset();
+    } else {
+      await fetch('/api/undo_reset', { method: 'POST' });
+    }
+    undoBannerExpireAt = 0;
     selectedEncounterIdx = -2;
     fetchSnapshot();
   }
@@ -1911,13 +2250,95 @@
     }
   }
 
-  async function toggleCompact() {
-    isCompact = !isCompact;
+  async function setCompactState(compact) {
+    isCompact = Boolean(compact);
     document.body.classList.toggle('compact-mode', isCompact);
-    document.getElementById('btnCompact').classList.toggle('active', isCompact);
+    const btn = document.getElementById('btnCompact');
+    if (btn) btn.classList.toggle('active', isCompact);
     if (window.pywebview && window.pywebview.api) {
       await window.pywebview.api.set_compact_mode(isCompact);
     }
+  }
+
+  async function toggleCompact() {
+    await setCompactState(!isCompact);
+  }
+
+  function toggleAutoMini() {
+    autoMiniInCombat = !autoMiniInCombat;
+    const btn = document.getElementById('btnAutoMini');
+    if (btn) btn.classList.toggle('active', autoMiniInCombat);
+    if (autoMiniInCombat && lastSnapshot && lastSnapshot.in_combat) {
+      setCompactState(true);
+    }
+  }
+
+  async function cycleOpacity() {
+    opacityIdx = (opacityIdx + 1) % opacityLevels.length;
+    const pct = opacityLevels[opacityIdx];
+    const btn = document.getElementById('btnOpacity');
+    if (btn) {
+      btn.textContent = `◐ ${pct}%`;
+      btn.classList.toggle('active', pct < 100);
+    }
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.set_opacity) {
+      await window.pywebview.api.set_opacity(pct);
+    } else {
+      document.body.style.opacity = String(pct / 100);
+    }
+  }
+
+  function setupChartInteractions() {
+    const canvas = document.getElementById('dpsCanvas');
+    const tip = document.getElementById('chartTooltip');
+    if (!canvas || !tip) return;
+
+    canvas.addEventListener('mousemove', (ev) => {
+      const st = chartInteractiveState;
+      if (!st.timeline || st.timeline.length < 2) {
+        tip.style.display = 'none';
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
+      const relX = Math.max(0, Math.min(1, (ev.clientX - rect.left) / Math.max(rect.width, 1)));
+      const idx = Math.min(st.timeline.length - 1, Math.max(0, Math.round(relX * (st.timeline.length - 1))));
+      const pt = st.timeline[idx];
+      const tSec = pt[0];
+      const dpsVal = pt[1];
+
+      let fightTxt = '';
+      if (st.markers && st.markers.length > 0) {
+        const fm = st.markers.find(m => tSec >= m.start_sec && tSec <= m.end_sec + 0.5) || st.markers[st.markers.length - 1];
+        if (fm) {
+          fightTxt = ` · #${fm.id} ${fm.title} (${fmtNum(fm.dps)}/s — click to inspect)`;
+        }
+      }
+
+      tip.textContent = `${fmtSecs(tSec)} — ${fmtNum(dpsVal)} DPS${fightTxt}`;
+      tip.style.display = 'block';
+      const tipW = tip.offsetWidth || 160;
+      const leftPx = Math.max(6, Math.min((rect.width - tipW - 6), (ev.clientX - rect.left) - tipW / 2));
+      tip.style.left = `${leftPx}px`;
+      tip.style.top = '22px';
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      tip.style.display = 'none';
+    });
+
+    canvas.addEventListener('click', (ev) => {
+      const st = chartInteractiveState;
+      if (!st.markers || st.markers.length <= 1 || !st.timeline || st.timeline.length < 2) return;
+      const rect = canvas.getBoundingClientRect();
+      const relX = Math.max(0, Math.min(1, (ev.clientX - rect.left) / Math.max(rect.width, 1)));
+      const idx = Math.min(st.timeline.length - 1, Math.max(0, Math.round(relX * (st.timeline.length - 1))));
+      const tSec = st.timeline[idx][0];
+      const fm = st.markers.find(m => tSec >= m.start_sec && tSec <= m.end_sec + 0.5);
+      if (fm !== undefined) {
+        tip.style.display = 'none';
+        setEncounterMode(fm.index);
+      }
+    });
   }
 
   async function browseLogFolder() {
@@ -2017,6 +2438,7 @@
 
   setInterval(fetchSnapshot, 250);
   window.addEventListener('DOMContentLoaded', () => {
+    setupChartInteractions();
     setTimeout(() => {
       fetchSnapshot();
       loadReferences();
