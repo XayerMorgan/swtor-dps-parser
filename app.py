@@ -283,6 +283,34 @@ class OverlayBridgeAPI:
                 pass
         return pct
 
+    def apply_window_icon(self) -> bool:
+        """
+        Applies holocron_icon.ico to the native Win32 HWND (both ICON_BIG for Alt-Tab /
+        Taskbar and ICON_SMALL for the title bar) using non-blocking PostMessageW.
+        """
+        hwnd, _ = self._get_hwnd_and_scale()
+        if not hwnd:
+            return False
+        ico_path = get_resource_path("holocron_icon.ico")
+        if not ico_path.exists():
+            return False
+        try:
+            import ctypes
+            WM_SETICON = 0x0080
+            ICON_SMALL = 0
+            ICON_BIG = 1
+            IMAGE_ICON = 1
+            LR_LOADFROMFILE = 0x00000010
+            hicon_big = ctypes.windll.user32.LoadImageW(0, str(ico_path), IMAGE_ICON, 256, 256, LR_LOADFROMFILE)
+            hicon_small = ctypes.windll.user32.LoadImageW(0, str(ico_path), IMAGE_ICON, 32, 32, LR_LOADFROMFILE)
+            if hicon_big:
+                ctypes.windll.user32.PostMessageW(hwnd, WM_SETICON, ICON_BIG, hicon_big)
+            if hicon_small:
+                ctypes.windll.user32.PostMessageW(hwnd, WM_SETICON, ICON_SMALL, hicon_small)
+            return True
+        except Exception:
+            return False
+
     def choose_log_dir(self) -> str:
         """
         Runs WinForms FolderBrowserDialog on a dedicated STA thread so it never
@@ -432,6 +460,14 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
     def help_image():
         return FileResponse(help_img_path)
 
+    @app.get("/holocron_icon.png")
+    def app_icon_png():
+        return FileResponse(get_resource_path("holocron_icon.png"))
+
+    @app.get("/favicon.ico")
+    def app_favicon():
+        return FileResponse(get_resource_path("holocron_icon.ico"))
+
     @app.get("/api/snapshot")
     def api_snapshot(enc: int = -2):
         with lock:
@@ -578,11 +614,19 @@ def main() -> None:
         run_browser_server(parser, lock, sim, port=args.port)
         return
 
+    # Set explicit Windows AppUserModelID so Taskbar and Alt-Tab display our custom Holocron icon
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("SWTOR.Holocron.DPS.Overlay.1")
+    except Exception:
+        pass
+
     # Launch native desktop Always-On-Top overlay window via pywebview
     import webview
 
     api = OverlayBridgeAPI(parser, lock, sim)
     html_file = get_resource_path("overlay_ui.html")
+    ico_file = get_resource_path("holocron_icon.ico")
 
     window = webview.create_window(
         title="SWTOR Holocron DPS Overlay",
@@ -594,7 +638,8 @@ def main() -> None:
         on_top=True,
         background_color="#0b0f19",
     )
-    webview.start(debug=False)
+    window.events.shown += lambda: api.apply_window_icon()
+    webview.start(debug=False, icon=str(ico_file) if ico_file.exists() else None)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/png" href="holocron_icon.png" />
 <title>Holocron Overlay — SWTOR Live DPS Parser</title>
 <style>
   :root {
@@ -909,6 +910,7 @@
   <!-- Header -->
   <div class="header">
     <div class="brand">
+      <img src="holocron_icon.png" alt="" width="20" height="20" style="border-radius: 4px; flex-shrink: 0;" />
       <span id="statusBadge" class="status-pill" title="Watching SWTOR CombatLogs folder">
         <span id="statusDot" class="status-dot ready"></span>
         <span id="statusText">LIVE</span>
@@ -2445,6 +2447,9 @@
     }, 100);
   });
   window.addEventListener('pywebviewready', () => {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.apply_window_icon) {
+      window.pywebview.api.apply_window_icon();
+    }
     loadReferences();
   });
 </script>
