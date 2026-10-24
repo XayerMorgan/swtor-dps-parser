@@ -88,6 +88,47 @@ class TestSWTORParser(unittest.TestCase):
         self.assertEqual(len(parser.references), 0)
         self.assertIsNone(parser.active_baseline_id)
 
+    def test_full_session_aggregation_across_encounters(self):
+        parser = SWTORLogParser(load_history=False)
+        lines = [
+            # Encounter 1 (5 seconds, 2000 damage using Snipe & Ambush)
+            "[14:00:00.000] [@Magisterium] [@Magisterium] [] [Event {836045448945472}: EnterCombat {836045448945489}] ()",
+            "[14:00:01.000] [@Magisterium] [Varad Churl {111}] [Snipe {1001}] [ApplyEffect {836045448945477}: Damage {836045448945501}] (800 energy {836045448940874}) <800>.",
+            "[14:00:03.000] [@Magisterium] [Varad Churl {111}] [Ambush {1002}] [ApplyEffect {836045448945477}: Damage {836045448945501}] (1200* energy {836045448940874}) <1200>.",
+            "[14:00:05.000] [@Magisterium] [@Magisterium] [] [Event {836045448945472}: ExitCombat {836045448945490}] ()",
+            # Encounter 2 (10 minutes later, 5 seconds, 3000 damage using Snipe & Followthrough)
+            "[14:10:00.000] [@Magisterium] [@Magisterium] [] [Event {836045448945472}: EnterCombat {836045448945489}] ()",
+            "[14:10:02.000] [@Magisterium] [Gorga Brak {222}] [Snipe {1001}] [ApplyEffect {836045448945477}: Damage {836045448945501}] (1000* energy {836045448940874}) <1000>.",
+            "[14:10:04.000] [@Magisterium] [Gorga Brak {222}] [Followthrough {1003}] [ApplyEffect {836045448945477}: Damage {836045448945501}] (2000* energy {836045448940874}) <2000>.",
+            "[14:10:05.000] [@Magisterium] [@Magisterium] [] [Event {836045448945472}: ExitCombat {836045448945490}] ()",
+        ]
+        for line in lines:
+            parser.parse_line(line)
+
+        # Single latest encounter (-1) should only have 3000 damage
+        latest_snap = parser.get_snapshot(-1)
+        self.assertEqual(latest_snap["local_stats"]["damage"], 3000)
+
+        # Full Session Total (-2) should aggregate both encounters (5000 damage over 10s active combat)
+        sess_snap = parser.get_snapshot(-2)
+        self.assertTrue(sess_snap["is_session_view"])
+        self.assertEqual(sess_snap["session_summary"]["encounter_count"], 2)
+        self.assertEqual(sess_snap["local_stats"]["damage"], 5000)
+        self.assertEqual(sess_snap["local_stats"]["dps"], 500.0)  # 5000 dmg / 10.0s active combat
+        abil_names = {a["name"]: a for a in sess_snap["local_stats"]["abilities"]}
+        self.assertIn("Snipe", abil_names)
+        self.assertIn("Ambush", abil_names)
+        self.assertIn("Followthrough", abil_names)
+        self.assertEqual(abil_names["Snipe"]["total_damage"], 1800)
+        self.assertEqual(abil_names["Snipe"]["hits"], 2)
+
+        # Save as a Named Session
+        saved_sess = parser.save_reference_point(-2, label="Spirit of Vengeance 2hr Run")
+        self.assertTrue(saved_sess["ok"])
+        self.assertTrue(saved_sess["reference"]["is_session"])
+        self.assertEqual(saved_sess["reference"]["encounter_count"], 2)
+        self.assertEqual(saved_sess["reference"]["label"], "Spirit of Vengeance 2hr Run")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -160,11 +160,11 @@ class OverlayBridgeAPI:
         except Exception:
             return None
 
-    def get_snapshot(self, encounter_index: int = -1) -> dict:
+    def get_snapshot(self, encounter_index: int = -2) -> dict:
         with self._lock:
             if not self._sim.running:
                 self._parser.poll()
-            idx = encounter_index if encounter_index >= 0 else None
+            idx = encounter_index if (encounter_index >= 0 or encounter_index == -2) else None
             return self._parser.get_snapshot(idx)
 
     def toggle_simulation(self) -> bool:
@@ -353,10 +353,15 @@ class OverlayBridgeAPI:
         with self._lock:
             return self._parser.get_references_state()
 
-    def save_reference(self, encounter_index: int = -1, label: str = "", set_as_baseline: bool = True) -> dict:
+    def save_reference(self, encounter_index: int = -2, label: str = "", set_as_baseline: bool = True) -> dict:
         with self._lock:
-            idx = encounter_index if encounter_index >= 0 else None
+            idx = encounter_index if (encounter_index >= 0 or encounter_index == -2) else None
             return self._parser.save_reference_point(idx, label=label, set_as_baseline=set_as_baseline)
+
+    def set_session_name(self, name: str) -> dict:
+        with self._lock:
+            clean = self._parser.set_session_name(name)
+            return {"ok": True, "session_name": clean}
 
     def set_baseline(self, ref_id: str = "") -> dict:
         with self._lock:
@@ -403,11 +408,11 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
         return FileResponse(help_img_path)
 
     @app.get("/api/snapshot")
-    def api_snapshot(enc: int = -1):
+    def api_snapshot(enc: int = -2):
         with lock:
             if not sim.running:
                 parser.poll()
-            idx = enc if enc >= 0 else None
+            idx = enc if (enc >= 0 or enc == -2) else None
             return JSONResponse(parser.get_snapshot(idx))
 
     @app.post("/api/toggle_sim")
@@ -469,12 +474,19 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
 
     @app.post("/api/save_reference")
     def api_save_reference(payload: dict):
-        enc_idx = int(payload.get("encounter_index", -1))
+        enc_idx = int(payload.get("encounter_index", -2))
         label = str(payload.get("label", ""))
         set_base = bool(payload.get("set_as_baseline", True))
         with lock:
-            idx = enc_idx if enc_idx >= 0 else None
+            idx = enc_idx if (enc_idx >= 0 or enc_idx == -2) else None
             return JSONResponse(parser.save_reference_point(idx, label=label, set_as_baseline=set_base))
+
+    @app.post("/api/set_session_name")
+    def api_set_session_name(payload: dict):
+        name = str(payload.get("name", ""))
+        with lock:
+            clean = parser.set_session_name(name)
+            return JSONResponse({"ok": True, "session_name": clean})
 
     @app.post("/api/set_baseline")
     def api_set_baseline(payload: dict):

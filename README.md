@@ -11,11 +11,14 @@ A lightweight, local-first live DPS parser and Always-On-Top overlay for **Star 
   - Live **Real-Time DPS Curve** sparkline and **Boss HP Bar**
   - Detailed **Ability Breakdown** (hits, crits, max hit, average hit, damage share, DPS)
   - **Group Raid DPS** and **Healing & Tank** tabs with automatic Combat Style / Discipline detection
-  - **Historical Reference Points & Cross-Session Analysis (`📈 History` & `⭐ Save Ref`):**
-  - Save any encounter as a persistent **Reference Point** (`%APPDATA%\SWTOR_Holocron_DPS\history_references.json`) with custom gear/build tags (e.g., `"340 Gear Baseline"`, `"New Tactical"`, `"Ops Dummy"`).
-  - **🎯 Active Baseline Live Comparison:** Pin any saved Reference Point as your active baseline to see real-time **$\Delta$ DPS**, **$\Delta$ Crit %**, and **per-ability $\Delta$ DPS** gains/losses right on the live HUD during combat.
+- **Full Play Session Aggregation (`📊 Session`) & Per-Encounter (`⚔️ Fight`) Modes:**
+  - **📊 Session Mode (Default):** Continuously aggregates **all encounters, skills, and abilities** (`Snipe`, `Ambush`, `Suppressive Fire`, `Penetrating Blasts`, etc.) across your entire 1–3+ hour play session without resetting between pulls. Tracks both **Active Combat Time** and **Total Session Time-to-Date**.
+  - **⚔️ Fight Mode & Encounter Selector:** Switch with one click to view only the current/latest fight or inspect any individual NPC pull (`#1..#N`) in your session.
+- **Named Session Saving & Cross-Session Historical Analysis (`📈 History` & `💾 Save Session`):**
+  - Save an entire 2-hour play session under a custom **Session Name** (or save individual boss fights) to `%APPDATA%\SWTOR_Holocron_DPS\history_references.json` with all recorded skills & abilities preserved.
+  - **🎯 Active Baseline Live Comparison:** Pin any saved Session or Fight as your active baseline to see real-time **$\Delta$ DPS**, **$\Delta$ Crit %**, and **per-ability $\Delta$ DPS** gains/losses right on the live HUD.
   - **Cross-Session Progression Chart:** Track Best DPS, Average DPS, and progression trends across sessions, filterable by Target or Combat Style/Spec.
-  - **📜 Import From Past Log Files:** Scan past `combat_*.txt` files in your `CombatLogs` folder across previous gaming sessions and bookmark notable boss fights or parses into your reference library.
+  - **📜 Import From Past Log Files:** Scan past `combat_*.txt` files in your `CombatLogs` folder and import either the **📦 Full Play Session** or specific boss encounters into your reference library.
 - **In-Game Overlay Controls:**
   - **📌 Pin (Always On Top):** Stays visible over SWTOR when playing in *Fullscreen (Windowed)* mode
   - **▣ Mini HUD Mode:** Collapses the window into a compact stat bar during boss pulls

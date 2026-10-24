@@ -272,6 +272,7 @@ class SWTORLogParser:
         self.active_encounter: Optional[Encounter] = None
         self._encounter_counter: int = 0
         self._last_timeline_bucket: int = -1
+        self.session_name: str = ""
 
         self.references: List[dict] = []
         self.active_baseline_id: Optional[str] = None
@@ -883,14 +884,162 @@ class SWTORLogParser:
                 if raw_amount > ab.max_hit:
                     ab.max_hit = raw_amount
 
+    @staticmethod
+    def _format_hms(seconds: float) -> str:
+        secs = max(int(round(seconds)), 0)
+        if secs >= 3600:
+            hrs = secs // 3600
+            mins = (secs % 3600) // 60
+            rem = secs % 60
+            return f"{hrs:02d}:{mins:02d}:{rem:02d}"
+        mins, rem = divmod(secs, 60)
+        return f"{mins:02d}:{rem:02d}"
+
+    def _compute_session_summary(self) -> dict:
+        if not self.encounters:
+            return {
+                "encounter_count": 0,
+                "combat_duration": "00:00",
+                "combat_seconds": 0.0,
+                "session_span": "00:00",
+                "session_span_seconds": 0.0,
+                "session_start": "--:--:--",
+                "session_end": "--:--:--",
+                "session_name": self.session_name,
+            }
+        total_combat = sum(e.duration_seconds for e in self.encounters)
+        first_start = self.encounters[0].start_time
+        last_end = self.encounters[-1].end_time
+        span_secs = max((last_end - first_start).total_seconds(), total_combat)
+        return {
+            "encounter_count": len(self.encounters),
+            "combat_duration": self._format_hms(total_combat),
+            "combat_seconds": round(total_combat, 1),
+            "session_span": self._format_hms(span_secs),
+            "session_span_seconds": round(span_secs, 1),
+            "session_start": first_start.strftime("%H:%M:%S"),
+            "session_end": last_end.strftime("%H:%M:%S"),
+            "session_name": self.session_name,
+        }
+
+    def _build_session_aggregate_encounter(self) -> Optional[Encounter]:
+        """
+        Aggregates all encounters in the current play session into a single unified
+        Encounter object so the player can analyze all skills, abilities, hits, crits,
+        and total damage across 7-10+ pulls or a full 2+ hour gaming session.
+        """
+        if not self.encounters:
+            return None
+
+        first_start = self.encounters[0].start_time
+        last_end = self.encounters[-1].end_time
+        in_combat = any(e.in_combat for e in self.encounters)
+        sess_title = self.session_name.strip() if self.session_name.strip() else f"{self.current_area} — Session Total"
+
+        agg = Encounter(
+            encounter_id=0,
+            start_time=first_start,
+            end_time=last_end,
+            in_combat=in_combat,
+            area_name=self.current_area,
+            primary_target=f"{sess_title} ({len(self.encounters)} fights)",
+        )
+
+        # Aggregate combatants and unify abilities by human-readable skill name
+        for e in self.encounters:
+            for tgt_name, dmg_val in e.target_damage.items():
+                agg.target_damage[tgt_name] = agg.target_damage.get(tgt_name, 0) + dmg_val
+
+            for c_name, c in e.combatants.items():
+                if not (c.is_player or c.is_companion):
+                    continue
+                if c_name not in agg.combatants:
+                    agg.combatants[c_name] = CombatantStats(
+                        name=c.name,
+                        is_player=c.is_player,
+                        is_companion=c.is_companion,
+                        owner_name=c.owner_name,
+                        discipline=c.discipline,
+                    )
+                ac = agg.combatants[c_name]
+                if c.discipline and not ac.discipline:
+                    ac.discipline = c.discipline
+                ac.damage_dealt += c.damage_dealt
+                ac.effective_damage_dealt += c.effective_damage_dealt
+                ac.healing_done += c.healing_done
+                ac.effective_healing_done += c.effective_healing_done
+                ac.damage_taken += c.damage_taken
+                ac.absorbed_damage += c.absorbed_damage
+                ac.actions += c.actions
+                ac.hits += c.hits
+                ac.crits += c.crits
+                ac.misses += c.misses
+
+                for ab in c.abilities.values():
+                    skill_key = ab.name or ab.ability_id or "Basic Attack"
+                    if skill_key not in ac.abilities:
+                        ac.abilities[skill_key] = AbilityStats(
+                            name=ab.name or skill_key,
+                            ability_id=ab.ability_id,
+                            damage_type=ab.damage_type,
+                        )
+                    aab = ac.abilities[skill_key]
+                    if not aab.damage_type and ab.damage_type:
+                        aab.damage_type = ab.damage_type
+                    aab.hits += ab.hits
+                    aab.crits += ab.crits
+                    aab.misses += ab.misses
+                    aab.total_damage += ab.total_damage
+                    aab.effective_damage += ab.effective_damage
+                    aab.total_heal += ab.total_heal
+                    aab.effective_heal += ab.effective_heal
+                    if ab.max_hit > aab.max_hit:
+                        aab.max_hit = ab.max_hit
+                    if ab.min_hit > 0 and (aab.min_hit == 0 or ab.min_hit < aab.min_hit):
+                        aab.min_hit = ab.min_hit
+
+        # Build session timeline: if multiple encounters, plot per-encounter DPS progression
+        # or concatenate intra-encounter timeline points across cumulative combat time
+        cum_time = 0.0
+        timeline_pts: List[Tuple[float, float]] = []
+        for e in self.encounters:
+            if e.dps_timeline:
+                for t_rel, val_dps in e.dps_timeline:
+                    timeline_pts.append((round(cum_time + t_rel, 1), round(val_dps, 1)))
+            else:
+                dur_e = e.duration_seconds
+                p_c = e.combatants.get(self.local_player_name)
+                if p_c:
+                    timeline_pts.append((round(cum_time + dur_e, 1), round(p_c.damage_dealt / dur_e, 1)))
+            cum_time += e.duration_seconds
+
+        if len(timeline_pts) > 120:
+            step = max(1, len(timeline_pts) // 120)
+            agg.dps_timeline = timeline_pts[::step][-120:]
+        else:
+            agg.dps_timeline = timeline_pts
+
+        return agg
+
+    def set_session_name(self, name: str) -> str:
+        self.session_name = name.strip()
+        return self.session_name
+
     def get_snapshot(self, encounter_index: Optional[int] = None) -> dict:
         """
-        Returns a serializable dictionary snapshot of the requested encounter
-        (or the current/latest encounter if encounter_index is None) for UI rendering.
+        Returns a serializable dictionary snapshot of the requested encounter:
+        - encounter_index == -2: Full Session Total (aggregates all encounters & skills in session)
+        - encounter_index is None or -1: Live / Latest single encounter
+        - encounter_index >= 0: Specific historical encounter in current session
         """
         self._prune_empty_encounters()
+        is_session_view = (encounter_index == -2)
+        sess_summary = self._compute_session_summary()
+
         enc: Optional[Encounter] = None
-        if encounter_index is not None and 0 <= encounter_index < len(self.encounters):
+        if is_session_view:
+            enc = self._build_session_aggregate_encounter()
+        elif encounter_index is not None and 0 <= encounter_index < len(self.encounters):
             enc = self.encounters[encounter_index]
         elif self.active_encounter:
             enc = self.active_encounter
@@ -912,6 +1061,7 @@ class SWTORLogParser:
         if not enc:
             return {
                 "has_encounter": False,
+                "is_session_view": is_session_view,
                 "in_combat": False,
                 "log_dir": str(self.log_dir),
                 "log_file": self.current_file.name if self.current_file else "Waiting for combat_*.txt...",
@@ -919,11 +1069,16 @@ class SWTORLogParser:
                 "discipline": self.local_discipline,
                 "area": self.current_area,
                 "encounters": encounter_list,
+                "session_summary": sess_summary,
                 "active_baseline": self.get_active_baseline(),
                 "references_count": len(self.references),
             }
 
-        dur = enc.duration_seconds
+        # For Full Session view, denominator for DPS/APM is total active combat seconds
+        # so out-of-combat walking time between pulls does not artificially zero out DPS.
+        dur = max(sess_summary["combat_seconds"], 1.0) if is_session_view else enc.duration_seconds
+        formatted_dur = sess_summary["combat_duration"] if is_session_view else enc.formatted_duration
+
         combatants_list = []
         local_stats = None
 
@@ -997,24 +1152,40 @@ class SWTORLogParser:
         if not local_stats and combatants_list:
             local_stats = combatants_list[0]
 
-        title = enc.get_title()
-        target_hp_info = None
-        if title in enc.target_hp:
-            cur_hp, max_hp = enc.target_hp[title]
-            target_hp_info = {
-                "current": cur_hp,
-                "max": max_hp,
-                "pct": round(cur_hp / max_hp * 100.0, 1) if max_hp > 0 else 0.0,
-            }
+        if is_session_view:
+            sess_label = self.session_name.strip() or self.current_area
+            title = f"{sess_label} ({len(self.encounters)} fights)"
+            target_hp_info = None
+            if self.active_encounter and self.active_encounter.in_combat:
+                act_title = self.active_encounter.get_title()
+                if act_title in self.active_encounter.target_hp:
+                    cur_hp, max_hp = self.active_encounter.target_hp[act_title]
+                    target_hp_info = {
+                        "current": cur_hp,
+                        "max": max_hp,
+                        "pct": round(cur_hp / max_hp * 100.0, 1) if max_hp > 0 else 0.0,
+                    }
+        else:
+            title = enc.get_title()
+            target_hp_info = None
+            if title in enc.target_hp:
+                cur_hp, max_hp = enc.target_hp[title]
+                target_hp_info = {
+                    "current": cur_hp,
+                    "max": max_hp,
+                    "pct": round(cur_hp / max_hp * 100.0, 1) if max_hp > 0 else 0.0,
+                }
 
         return {
             "has_encounter": True,
+            "is_session_view": is_session_view,
             "encounter_id": enc.encounter_id,
             "in_combat": enc.in_combat,
             "title": title,
             "area": enc.area_name,
-            "duration": enc.formatted_duration,
+            "duration": formatted_dur,
             "duration_seconds": round(dur, 1),
+            "session_summary": sess_summary,
             "target_hp": target_hp_info,
             "log_dir": str(self.log_dir),
             "log_file": self.current_file.name if self.current_file else "Simulated / Loaded",
@@ -1089,12 +1260,20 @@ class SWTORLogParser:
 
         now = datetime.now()
         ref_id = f"ref_{int(now.timestamp() * 1000)}_{len(self.references) + 1}"
+        is_session = bool(snap.get("is_session_view", False))
+        sess_sum = snap.get("session_summary") or {}
+        enc_count = sess_sum.get("encounter_count", 1) if is_session else 1
+        session_span = sess_sum.get("session_span", snap.get("duration", "00:00"))
+
         target_name = snap.get("title") or "Combat Encounter"
         discipline = p.get("discipline") or snap.get("discipline") or ""
         char_name = p.get("name") or snap.get("local_player") or "Player"
         clean_label = label.strip() if label else ""
         if not clean_label:
-            clean_label = f"{target_name} ({snap.get('duration', '00:00')})"
+            if is_session:
+                clean_label = self.session_name.strip() or f"Session: {snap.get('area', 'SWTOR')} ({enc_count} fights)"
+            else:
+                clean_label = f"{target_name} ({snap.get('duration', '00:00')})"
 
         log_file = snap.get("log_file") or ""
         session_date = now.strftime("%Y-%m-%d")
@@ -1104,6 +1283,9 @@ class SWTORLogParser:
 
         return {
             "id": ref_id,
+            "is_session": is_session,
+            "encounter_count": enc_count,
+            "session_span": session_span,
             "saved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "session_date": session_date,
             "label": clean_label,
@@ -1139,7 +1321,7 @@ class SWTORLogParser:
                     "hits": a["hits"],
                     "total_damage": a["total_damage"],
                 }
-                for a in abilities[:15]
+                for a in abilities[:40]
             ],
         }
 
@@ -1149,6 +1331,8 @@ class SWTORLogParser:
         label: str = "",
         set_as_baseline: bool = True,
     ) -> dict:
+        if encounter_index == -2 and label.strip():
+            self.session_name = label.strip()
         snap = self.get_snapshot(encounter_index)
         ref = self._build_reference_from_snapshot(snap, label=label)
         if not ref:
@@ -1197,7 +1381,8 @@ class SWTORLogParser:
     def scan_historical_logs(self, max_files: int = 8, min_duration: float = 12.0, max_results: int = 60) -> List[dict]:
         """
         Scans past combat_*.txt log files in self.log_dir across gaming sessions
-        and returns a list of notable encounters that can be saved as Reference Points.
+        and returns both the Full Session Summary (encounter_index = -2) for each log file
+        and its notable individual encounters.
         """
         if not self.log_dir.exists():
             return []
@@ -1215,9 +1400,39 @@ class SWTORLogParser:
             temp = SWTORLogParser(log_dir=str(self.log_dir), load_history=False)
             temp.load_entire_file(fpath)
             temp._prune_empty_encounters()
+            if not temp.encounters:
+                continue
+
             m_date = re.search(r"combat_(\d{4}-\d{2}-\d{2})_(\d{2})_(\d{2})", fpath.name)
             session_str = f"{m_date.group(1)} {m_date.group(2)}:{m_date.group(3)}" if m_date else fpath.name
 
+            # 1. Add the Full Aggregated Play Session entry (encounter_index = -2)
+            sess_snap = temp.get_snapshot(-2)
+            sess_p = sess_snap.get("local_stats")
+            sess_sum = sess_snap.get("session_summary") or {}
+            if sess_p and (sess_p.get("damage", 0) > 0 or sess_p.get("heal", 0) > 0):
+                results.append({
+                    "is_session": True,
+                    "file_name": fpath.name,
+                    "session_time": session_str,
+                    "encounter_index": -2,
+                    "encounter_id": 0,
+                    "encounter_count": len(temp.encounters),
+                    "session_span": sess_sum.get("session_span", sess_snap.get("duration", "00:00")),
+                    "start_time": sess_sum.get("session_start", ""),
+                    "character": sess_p.get("name") or sess_snap.get("local_player") or "Player",
+                    "discipline": sess_p.get("discipline") or sess_snap.get("discipline") or "",
+                    "target": f"Full Play Session ({len(temp.encounters)} fights - {sess_snap.get('area', 'SWTOR')})",
+                    "area": sess_snap.get("area") or "Unknown Area",
+                    "duration": sess_snap.get("duration", "00:00"),
+                    "duration_seconds": sess_snap.get("duration_seconds", 1.0),
+                    "dps": sess_p.get("dps", 0.0),
+                    "total_damage": sess_p.get("damage", 0),
+                    "crit_pct": sess_p.get("crit_pct", 0.0),
+                    "apm": sess_p.get("apm", 0.0),
+                })
+
+            # 2. Add top individual boss/mob encounters from that session
             file_items: List[dict] = []
             for idx, enc in enumerate(temp.encounters):
                 if enc.duration_seconds < min_duration:
@@ -1227,10 +1442,13 @@ class SWTORLogParser:
                 if not p or (p.get("damage", 0) <= 0 and p.get("heal", 0) <= 0):
                     continue
                 file_items.append({
+                    "is_session": False,
                     "file_name": fpath.name,
                     "session_time": session_str,
                     "encounter_index": idx,
                     "encounter_id": enc.encounter_id,
+                    "encounter_count": 1,
+                    "session_span": snap.get("duration", "00:00"),
                     "start_time": enc.start_time.strftime("%H:%M:%S"),
                     "character": p.get("name") or snap.get("local_player") or "Player",
                     "discipline": p.get("discipline") or snap.get("discipline") or "",
@@ -1243,22 +1461,21 @@ class SWTORLogParser:
                     "crit_pct": p.get("crit_pct", 0.0),
                     "apm": p.get("apm", 0.0),
                 })
-            # Keep top 15 biggest/longest fights per session file, ordered by most damage
             file_items.sort(key=lambda x: x["total_damage"], reverse=True)
-            results.extend(file_items[:15])
+            results.extend(file_items[:12])
             if len(results) >= max_results:
                 break
         return results[:max_results]
 
     def import_historical_encounter(self, file_name: str, encounter_index: int, label: str = "") -> dict:
-        """Imports a specific encounter from a past combat_*.txt file into saved Reference Points."""
+        """Imports either a Full Session (encounter_index == -2) or a specific encounter from a past combat_*.txt file."""
         fpath = self.log_dir / file_name
         if not fpath.exists():
             return {"ok": False, "error": f"Log file not found: {file_name}", **self.get_references_state()}
         temp = SWTORLogParser(log_dir=str(self.log_dir), load_history=False)
         temp.load_entire_file(fpath)
         temp._prune_empty_encounters()
-        if encounter_index < 0 or encounter_index >= len(temp.encounters):
+        if encounter_index != -2 and (encounter_index < 0 or encounter_index >= len(temp.encounters)):
             return {"ok": False, "error": "Encounter index out of range", **self.get_references_state()}
         snap = temp.get_snapshot(encounter_index)
         snap["log_file"] = fpath.name

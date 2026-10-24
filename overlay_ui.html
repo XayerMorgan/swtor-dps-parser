@@ -830,13 +830,16 @@
     </div>
   </div>
 
-  <!-- Encounter Selector & Quick Save Reference -->
+  <!-- Encounter Selector & Session / Fight Toggle -->
   <div class="encounter-bar">
+    <button id="btnModeSession" class="btn btn-xs active" onclick="setEncounterMode(-2)" title="Aggregate ALL encounters & skills across your entire play session (Time-to-Date)">📊 Session</button>
+    <button id="btnModeFight" class="btn btn-xs" onclick="setEncounterMode(-1)" title="View only the current or latest individual NPC fight">⚔️ Fight</button>
     <select id="encounterSelect" class="encounter-select" onchange="onSelectEncounter()">
-      <option value="-1">Live / Latest Encounter</option>
+      <option value="-2">📊 Full Session Total (Time to Date)</option>
+      <option value="-1">⚔️ Current / Latest Fight Only</option>
     </select>
-    <button id="btnQuickSaveRef" class="btn" onclick="quickSaveReference()" title="Save this encounter as a Historical Reference Point">⭐ Save Ref</button>
-    <div id="timerBadge" class="timer-badge">00:00</div>
+    <button id="btnQuickSaveRef" class="btn btn-xs" onclick="quickSaveReference()" title="Save Full Session or Current Fight to History">💾 Save Session</button>
+    <div id="timerBadge" class="timer-badge" title="Active Combat Time | Total Session Span">00:00</div>
   </div>
 
   <!-- Active Baseline Comparison Bar -->
@@ -900,13 +903,16 @@
     <!-- Tab: Historical Reference Points & Cross-Session Analysis -->
     <div id="tab-history" class="tab-pane" style="display: none;">
       <div class="help-step" style="margin-bottom: 8px;">
-        <h4>⭐ Save Current Fight as Reference Point</h4>
-        <div class="path-input-row" style="margin-bottom: 4px;">
-          <input id="refLabelInput" type="text" class="path-input" placeholder="Optional tag/note (e.g. '340 Gear Baseline', 'New Tactical', 'Ops Dummy')..." />
-          <button class="btn active" onclick="saveCurrentReference()">⭐ Save Reference</button>
+        <h4>💾 Save Named Session or Fight Reference</h4>
+        <div class="path-input-row" style="margin-bottom: 6px;">
+          <input id="refLabelInput" type="text" class="path-input" placeholder="Enter Session Name or Fight Tag (e.g. '2hr Spirit of Vengeance Session', '340 Gear')..." />
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 5px;">
+          <button class="btn active" onclick="saveNamedSession()" title="Save the entire aggregated play session (all encounters & skills to date) under this Session Name">💾 Save Full Session (All Fights)</button>
+          <button class="btn" onclick="saveCurrentReference()" title="Save only the currently selected encounter/view">⭐ Save Selected View</button>
         </div>
         <div id="refSaveStatus" style="font-size: 10.5px; color: var(--text-muted);">
-          Pin any saved Reference Point as your <strong>🎯 Active Baseline</strong> to see live &Delta; DPS, &Delta; Crit%, and per-ability gains/losses across gaming sessions.
+          <strong>📊 Session Mode</strong> aggregates all 7–10+ fights (or 2+ hours of play) and every skill you used into one continuous record. Pin any saved Session or Fight as your <strong>🎯 Active Baseline</strong>!
         </div>
       </div>
 
@@ -1018,7 +1024,7 @@
 
 <script>
   let currentTab = 'abilities';
-  let selectedEncounterIdx = -1;
+  let selectedEncounterIdx = -2; // Default to Full Session Total (Time-to-Date) so stats accumulate across pulls!
   let isPinned = true;
   let isCompact = false;
   let isSimRunning = false;
@@ -1056,9 +1062,30 @@
     if (lastSnapshot) renderSnapshot(lastSnapshot);
   }
 
+  function syncModeButtons() {
+    const isSess = (selectedEncounterIdx === -2);
+    const btnSess = document.getElementById('btnModeSession');
+    const btnFight = document.getElementById('btnModeFight');
+    const btnQuick = document.getElementById('btnQuickSaveRef');
+    if (btnSess) btnSess.classList.toggle('active', isSess);
+    if (btnFight) btnFight.classList.toggle('active', !isSess);
+    if (btnQuick) {
+      btnQuick.textContent = isSess ? '💾 Save Session' : '⭐ Save Fight';
+    }
+  }
+
+  function setEncounterMode(idx) {
+    selectedEncounterIdx = idx;
+    const sel = document.getElementById('encounterSelect');
+    if (sel) sel.value = String(idx);
+    syncModeButtons();
+    fetchSnapshot();
+  }
+
   function onSelectEncounter() {
     const sel = document.getElementById('encounterSelect');
     selectedEncounterIdx = parseInt(sel.value, 10);
+    syncModeButtons();
     fetchSnapshot();
   }
 
@@ -1165,17 +1192,23 @@
 
     const sel = document.getElementById('encounterSelect');
     const encList = snap.encounters || [];
+    const sessSum = snap.session_summary || { encounter_count: encList.length, combat_duration: '00:00', session_span: '00:00' };
     const prevValue = selectedEncounterIdx;
-    let htmlOpts = `<option value="-1">⚡ Live / Latest Encounter</option>`;
+    const sessLabel = sessSum.encounter_count > 0
+      ? `📊 Full Session (${sessSum.encounter_count} fights · ${sessSum.combat_duration} combat / ${sessSum.session_span} span)`
+      : `📊 Full Session Total (Time to Date)`;
+    let htmlOpts = `<option value="-2">${sessLabel}</option>`;
+    htmlOpts += `<option value="-1">⚔️ Current / Latest Fight Only</option>`;
     for (let i = encList.length - 1; i >= 0; i--) {
       const e = encList[i];
       const statusIcon = e.in_combat ? '🔴' : '✓';
-      htmlOpts += `<option value="${e.index}">${statusIcon} #${e.id} ${e.title} (${e.duration}) [${e.start_time}]</option>`;
+      htmlOpts += `<option value="${e.index}">${statusIcon} #${e.id} ${escHtml(e.title)} (${e.duration}) [${e.start_time}]</option>`;
     }
     if (sel.innerHTML !== htmlOpts) {
       sel.innerHTML = htmlOpts;
       sel.value = String(prevValue);
     }
+    syncModeButtons();
 
     if (!snap.has_encounter || !snap.local_stats) {
       document.getElementById('kpiDps').textContent = '0';
@@ -1215,7 +1248,15 @@
     document.getElementById('kpiHits').textContent = `${p.hits} hits`;
     document.getElementById('kpiHps').textContent = fmtNum(p.hps);
     document.getElementById('kpiDtps').textContent = `${fmtNum(p.dtps)} DTPS`;
-    document.getElementById('timerBadge').textContent = snap.duration;
+
+    const timerEl = document.getElementById('timerBadge');
+    if (snap.is_session_view && sessSum.encounter_count > 1 && sessSum.session_span !== snap.duration) {
+      timerEl.textContent = `${snap.duration} (${sessSum.session_span})`;
+      timerEl.title = `Active Combat Time: ${snap.duration} | Total Session Time-to-Date: ${sessSum.session_span} (${sessSum.encounter_count} fights)`;
+    } else {
+      timerEl.textContent = snap.duration;
+      timerEl.title = `Combat Duration: ${snap.duration}`;
+    }
 
     const hpWrap = document.getElementById('bossHpWrap');
     if (snap.target_hp && snap.target_hp.max > 0) {
@@ -1388,6 +1429,32 @@
       if (statusEl && res && res.error) {
         statusEl.innerHTML = `<span style="color: var(--accent-crimson);">⚠ ${escHtml(res.error)} Start a fight or load a sample parse first!</span>`;
       }
+    }
+  }
+
+  async function saveNamedSession() {
+    const inp = document.getElementById('refLabelInput');
+    const label = inp ? inp.value.trim() : '';
+    let res = null;
+    if (window.pywebview && window.pywebview.api) {
+      res = await window.pywebview.api.save_reference(-2, label, true);
+    } else {
+      const resp = await fetch('/api/save_reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encounter_index: -2, label: label, set_as_baseline: true }),
+      });
+      res = await resp.json();
+    }
+    const statusEl = document.getElementById('refSaveStatus');
+    if (res && res.ok) {
+      if (inp) inp.value = '';
+      if (statusEl) {
+        statusEl.innerHTML = `<span style="color: var(--accent-emerald);">✓ Saved Full Session "${escHtml(res.reference.label)}" (${res.reference.encounter_count || 1} fights · ${fmtNum(res.reference.dps)} DPS) as Active Baseline!</span>`;
+      }
+      syncReferencesState(res);
+    } else if (statusEl) {
+      statusEl.innerHTML = `<span style="color: var(--accent-crimson);">⚠ ${(res && res.error) ? escHtml(res.error) : 'No session encounters to save yet.'}</span>`;
     }
   }
 
@@ -1607,6 +1674,12 @@
       const isBase = r.id === activeBaselineId;
       const isExpanded = r.id === expandedRefId;
       const isRenaming = r.id === renamingRefId;
+      const isSess = Boolean(r.is_session) || (r.encounter_count && r.encounter_count > 1);
+      const abilCount = (r.abilities || []).length;
+
+      let typeBadge = isSess
+        ? `<span class="meter-badge" style="background: rgba(255, 184, 0, 0.2); color: var(--accent-gold); border: 1px solid rgba(255, 184, 0, 0.4);">📦 SESSION (${r.encounter_count || 1} fights · ${escHtml(r.session_span || r.duration)} span)</span>`
+        : `<span class="meter-badge">⚔️ Fight</span>`;
 
       let vsLiveBadge = '';
       if (lastSnapshot && lastSnapshot.has_encounter && lastSnapshot.local_stats) {
@@ -1614,13 +1687,13 @@
         const diff = liveDps - (r.dps || 0);
         const sign = diff >= 0 ? '+' : '';
         const cls = diff > 5 ? 'delta-pos' : (diff < -5 ? 'delta-neg' : 'delta-neutral');
-        vsLiveBadge = `<span class="delta-pill ${cls}" title="Current Live Fight vs This Reference">Live: ${sign}${fmtNum(diff)}/s</span>`;
+        vsLiveBadge = `<span class="delta-pill ${cls}" title="Current Live View vs This Reference">Live: ${sign}${fmtNum(diff)}/s</span>`;
       }
 
       let abilCompareHtml = '';
       if (isExpanded && r.abilities && r.abilities.length > 0) {
         let rows = '';
-        r.abilities.slice(0, 8).forEach((ab, idx) => {
+        r.abilities.slice(0, 40).forEach((ab, idx) => {
           const liveAb = liveAbilMap[ab.name];
           let diffTxt = '';
           if (liveAb) {
@@ -1631,8 +1704,9 @@
           }
           rows += `
             <div style="display:flex; justify-content:space-between; font-size:10.5px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-family:var(--font-mono);">
-              <span style="color:var(--text-primary); font-family:var(--font-ui);">${idx + 1}. ${escHtml(ab.name)} <span style="color:var(--text-muted);">(${ab.pct}% · ${ab.crit_pct}%c)</span></span>
+              <span style="color:var(--text-primary); font-family:var(--font-ui);">${idx + 1}. ${escHtml(ab.name)} <span style="color:var(--text-muted);">(${ab.hits || 0}h · ${ab.pct}% · ${ab.crit_pct}%c)</span></span>
               <span style="display:flex; gap:8px;">
+                <span style="color:var(--text-muted);">${fmtNum(ab.total_damage)}</span>
                 <span style="color:var(--accent-gold);">${fmtNum(ab.dps)}/s</span>
                 ${diffTxt}
               </span>
@@ -1640,28 +1714,29 @@
         });
         abilCompareHtml = `
           <div style="margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.1);">
-            <div class="kpi-label" style="margin-bottom:3px;">Saved Ability Breakdown ${Object.keys(liveAbilMap).length ? '(vs Current Fight)' : ''}:</div>
+            <div class="kpi-label" style="margin-bottom:3px;">All Recorded Skills &amp; Abilities (${abilCount}) ${Object.keys(liveAbilMap).length ? '— vs Current View' : ''}:</div>
             ${rows}
           </div>`;
       }
 
       const renameRow = isRenaming ? `
         <div class="path-input-row" style="margin: 4px 0 6px;">
-          <input id="renameInput_${r.id}" type="text" class="path-input" value="${escHtml(r.label)}" />
-          <button class="btn btn-xs active" onclick="applyRenameRef('${r.id}')">✓ Save Tag</button>
+          <input id="renameInput_${r.id}" type="text" class="path-input" value="${escHtml(r.label)}" placeholder="Enter Session Name or Fight Tag..." />
+          <button class="btn btn-xs active" onclick="applyRenameRef('${r.id}')">✓ Save Name</button>
         </div>` : '';
 
       html += `
         <div class="ref-card ${isBase ? 'is-baseline' : ''}">
           <div class="ref-header">
-            <div class="ref-title">
-              <span>${isBase ? '🎯 ' : '⭐ '}${escHtml(r.label)}</span>
+            <div class="ref-title" style="flex-wrap: wrap;">
+              <span>${isBase ? '🎯 ' : (isSess ? '📦 ' : '⭐ ')}${escHtml(r.label)}</span>
+              ${typeBadge}
               ${vsLiveBadge}
             </div>
             <div class="ref-actions">
               <button class="btn btn-xs ${isBase ? 'active' : ''}" onclick="setBaselineRef('${r.id}')" title="Pin/Unpin as Active Baseline for Live HUD Comparison">${isBase ? '🎯 Active Ref' : 'Set Baseline'}</button>
-              <button class="btn btn-xs" onclick="toggleExpandRef('${r.id}')" title="View Ability Breakdown & Compare">${isExpanded ? '▲ Hide' : '▼ Abilities'}</button>
-              <button class="btn btn-xs" onclick="startRenameRef('${r.id}')" title="Edit Tag / Gear Note">✏️</button>
+              <button class="btn btn-xs" onclick="toggleExpandRef('${r.id}')" title="View All Recorded Skills & Compare">${isExpanded ? '▲ Hide' : `▼ Skills (${abilCount})`}</button>
+              <button class="btn btn-xs" onclick="startRenameRef('${r.id}')" title="Rename Session / Edit Tag">✏️</button>
               <button class="btn btn-xs" onclick="deleteRef('${r.id}')" title="Delete Reference Point">🗑️</button>
             </div>
           </div>
@@ -1669,7 +1744,7 @@
           <div class="ref-meta">
             <span>📅 ${escHtml(r.saved_at || r.session_date)}</span>
             <span>👤 ${escHtml(r.character)}${r.discipline ? ' (' + escHtml(r.discipline) + ')' : ''}</span>
-            <span>🎯 ${escHtml(r.target)} (${escHtml(r.duration)})</span>
+            <span>🎯 ${escHtml(r.target)} (${escHtml(r.duration)} combat)</span>
           </div>
           <div class="ref-stats-grid">
             <div class="ref-stat-cell">
@@ -1717,17 +1792,20 @@
       window._pastLogItems = items;
       let html = '';
       items.forEach((it, idx) => {
+        const isSess = Boolean(it.is_session);
+        const rowStyle = isSess ? 'border-color: rgba(255, 184, 0, 0.55); background: rgba(255, 184, 0, 0.08);' : '';
+        const spanTxt = isSess ? `${it.duration} combat / ${it.session_span} span` : it.duration;
         html += `
-          <div class="cand-item">
+          <div class="cand-item" style="${rowStyle}">
             <div class="cand-info">
               <div class="cand-title">
-                <span>🎯 ${escHtml(it.target)} (${escHtml(it.duration)})</span>
+                <span>${isSess ? '📦 ' : '🎯 '}${escHtml(it.target)} (${escHtml(spanTxt)})</span>
                 <span class="meter-badge" style="color:var(--accent-gold);">${fmtNum(it.dps)} DPS</span>
-                <span class="meter-badge">${it.crit_pct.toFixed(1)}%c · ${it.apm.toFixed(1)} APM</span>
+                <span class="meter-badge">${fmtNum(it.total_damage)} dmg · ${it.crit_pct.toFixed(1)}%c</span>
               </div>
               <div class="cand-path">📅 ${escHtml(it.session_time)} · 👤 ${escHtml(it.character)} ${it.discipline ? '(' + escHtml(it.discipline) + ')' : ''} · ${escHtml(it.area)}</div>
             </div>
-            <button id="btnImportPast_${idx}" class="btn btn-xs active" onclick="importPastItem(${idx})">+ Save Ref</button>
+            <button id="btnImportPast_${idx}" class="btn btn-xs active" onclick="importPastItem(${idx})">${isSess ? '💾 Save Session' : '+ Save Fight'}</button>
           </div>`;
       });
       list.innerHTML = html;
@@ -1742,7 +1820,11 @@
     if (!it) return;
     const btn = document.getElementById('btnImportPast_' + idx);
     if (btn) btn.textContent = 'Saving...';
-    const label = `${it.target} (${it.session_time})`;
+    const customInp = document.getElementById('refLabelInput');
+    const customName = customInp ? customInp.value.trim() : '';
+    const label = customName || (it.is_session
+      ? `Session: ${it.area} (${it.session_time} · ${it.encounter_count} fights)`
+      : `${it.target} (${it.session_time})`);
     let res = null;
     if (window.pywebview && window.pywebview.api) {
       res = await window.pywebview.api.import_past_encounter(it.file_name, it.encounter_index, label);
@@ -1755,6 +1837,7 @@
       res = await resp.json();
     }
     if (res && res.ok) {
+      if (customInp) customInp.value = '';
       if (btn) {
         btn.textContent = '✓ Saved';
         btn.classList.remove('active');
@@ -1795,7 +1878,7 @@
     }
     btn.classList.toggle('sim-running', isSimRunning);
     btn.textContent = isSimRunning ? '⏹ Stop' : '⚡ Demo';
-    selectedEncounterIdx = -1;
+    if (selectedEncounterIdx >= 0) selectedEncounterIdx = -2;
     fetchSnapshot();
   }
 
@@ -1805,7 +1888,7 @@
     } else {
       await fetch('/api/load_sample', { method: 'POST' });
     }
-    selectedEncounterIdx = -1;
+    if (selectedEncounterIdx >= 0) selectedEncounterIdx = -2;
     if (currentTab === 'settings') switchTab('abilities');
     fetchSnapshot();
   }
@@ -1816,7 +1899,7 @@
     } else {
       await fetch('/api/reset', { method: 'POST' });
     }
-    selectedEncounterIdx = -1;
+    selectedEncounterIdx = -2;
     fetchSnapshot();
   }
 
@@ -1842,7 +1925,7 @@
       const newDir = await window.pywebview.api.choose_log_dir();
       if (newDir) {
         document.getElementById('customPathInput').value = newDir;
-        selectedEncounterIdx = -1;
+        selectedEncounterIdx = -2;
         await scanLogFolders();
         fetchSnapshot();
       }
@@ -1867,7 +1950,7 @@
       if (res && res.log_dir && inp) inp.value = res.log_dir;
       if (res && res.candidates) renderCandidates(res.candidates, res.log_dir);
     }
-    selectedEncounterIdx = -1;
+    selectedEncounterIdx = -2;
     fetchSnapshot();
   }
 
