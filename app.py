@@ -347,6 +347,37 @@ class OverlayBridgeAPI:
         except Exception:
             return False
 
+    # --- Reference Points & Cross-Session History API ---
+
+    def get_references(self) -> dict:
+        with self._lock:
+            return self._parser.get_references_state()
+
+    def save_reference(self, encounter_index: int = -1, label: str = "", set_as_baseline: bool = True) -> dict:
+        with self._lock:
+            idx = encounter_index if encounter_index >= 0 else None
+            return self._parser.save_reference_point(idx, label=label, set_as_baseline=set_as_baseline)
+
+    def set_baseline(self, ref_id: str = "") -> dict:
+        with self._lock:
+            return self._parser.set_active_baseline(ref_id or None)
+
+    def rename_reference(self, ref_id: str, label: str) -> dict:
+        with self._lock:
+            return self._parser.update_reference_label(ref_id, label)
+
+    def delete_reference(self, ref_id: str) -> dict:
+        with self._lock:
+            return self._parser.delete_reference_point(ref_id)
+
+    def scan_past_logs(self) -> list:
+        with self._lock:
+            return self._parser.scan_historical_logs()
+
+    def import_past_encounter(self, file_name: str, encounter_index: int, label: str = "") -> dict:
+        with self._lock:
+            return self._parser.import_historical_encounter(file_name, int(encounter_index), label=label)
+
 
 def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSimulationWorker, port: int = 8765) -> None:
     """Runs a lightweight local FastAPI/Uvicorn server so the UI can also be tested in any browser."""
@@ -430,6 +461,52 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
             "log_dir": str(chosen),
             "candidates": parser.discover_log_directories(chosen),
         })
+
+    @app.get("/api/references")
+    def api_get_references():
+        with lock:
+            return JSONResponse(parser.get_references_state())
+
+    @app.post("/api/save_reference")
+    def api_save_reference(payload: dict):
+        enc_idx = int(payload.get("encounter_index", -1))
+        label = str(payload.get("label", ""))
+        set_base = bool(payload.get("set_as_baseline", True))
+        with lock:
+            idx = enc_idx if enc_idx >= 0 else None
+            return JSONResponse(parser.save_reference_point(idx, label=label, set_as_baseline=set_base))
+
+    @app.post("/api/set_baseline")
+    def api_set_baseline(payload: dict):
+        ref_id = str(payload.get("ref_id", "")).strip()
+        with lock:
+            return JSONResponse(parser.set_active_baseline(ref_id or None))
+
+    @app.post("/api/rename_reference")
+    def api_rename_reference(payload: dict):
+        ref_id = str(payload.get("ref_id", "")).strip()
+        label = str(payload.get("label", "")).strip()
+        with lock:
+            return JSONResponse(parser.update_reference_label(ref_id, label))
+
+    @app.post("/api/delete_reference")
+    def api_delete_reference(payload: dict):
+        ref_id = str(payload.get("ref_id", "")).strip()
+        with lock:
+            return JSONResponse(parser.delete_reference_point(ref_id))
+
+    @app.get("/api/scan_past_logs")
+    def api_scan_past_logs():
+        with lock:
+            return JSONResponse(parser.scan_historical_logs())
+
+    @app.post("/api/import_past_encounter")
+    def api_import_past_encounter(payload: dict):
+        fname = str(payload.get("file_name", ""))
+        eidx = int(payload.get("encounter_index", 0))
+        label = str(payload.get("label", ""))
+        with lock:
+            return JSONResponse(parser.import_historical_encounter(fname, eidx, label=label))
 
     print(f"SWTOR Holocron DPS Web UI running at http://127.0.0.1:{port}")
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")

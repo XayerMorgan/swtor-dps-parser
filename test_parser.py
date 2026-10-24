@@ -51,7 +51,7 @@ class TestSWTORParser(unittest.TestCase):
         self.assertEqual(snap["local_stats"]["crit_pct"], 50.0)
 
     def test_simulated_7_0_encounter(self):
-        parser = SWTORLogParser()
+        parser = SWTORLogParser(load_history=False)
         for line in generate_instant_demo_lines():
             parser.parse_line(line)
 
@@ -61,6 +61,32 @@ class TestSWTORParser(unittest.TestCase):
         self.assertGreater(snap["local_stats"]["dps"], 20000)
         self.assertEqual(len(snap["combatants"]), 4)
         self.assertIsNotNone(snap["target_hp"])
+
+    def test_reference_points_and_history(self):
+        parser = SWTORLogParser(load_history=False)
+        for line in generate_instant_demo_lines():
+            parser.parse_line(line)
+
+        # Save a reference point
+        res = parser.save_reference_point(label="340 Gear Baseline", set_as_baseline=True)
+        self.assertTrue(res["ok"])
+        ref = res["reference"]
+        self.assertEqual(ref["label"], "340 Gear Baseline")
+        self.assertEqual(ref["character"], "DarthVex")
+        self.assertGreater(ref["dps"], 20000)
+        self.assertTrue(len(ref["abilities"]) > 0)
+        self.assertEqual(parser.active_baseline_id, ref["id"])
+
+        # Rename reference point
+        ren = parser.update_reference_label(ref["id"], "Updated Tactical Parse")
+        self.assertTrue(ren["ok"])
+        self.assertEqual(parser.get_active_baseline()["label"], "Updated Tactical Parse")
+
+        # Delete reference point
+        del_res = parser.delete_reference_point(ref["id"])
+        self.assertTrue(del_res["ok"])
+        self.assertEqual(len(parser.references), 0)
+        self.assertIsNone(parser.active_baseline_id)
 
 
 if __name__ == "__main__":

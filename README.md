@@ -11,7 +11,11 @@ A lightweight, local-first live DPS parser and Always-On-Top overlay for **Star 
   - Live **Real-Time DPS Curve** sparkline and **Boss HP Bar**
   - Detailed **Ability Breakdown** (hits, crits, max hit, average hit, damage share, DPS)
   - **Group Raid DPS** and **Healing & Tank** tabs with automatic Combat Style / Discipline detection
-  - **Encounter History** dropdown to review any boss pull or trash fight in your session
+  - **Historical Reference Points & Cross-Session Analysis (`📈 History` & `⭐ Save Ref`):**
+  - Save any encounter as a persistent **Reference Point** (`%APPDATA%\SWTOR_Holocron_DPS\history_references.json`) with custom gear/build tags (e.g., `"340 Gear Baseline"`, `"New Tactical"`, `"Ops Dummy"`).
+  - **🎯 Active Baseline Live Comparison:** Pin any saved Reference Point as your active baseline to see real-time **$\Delta$ DPS**, **$\Delta$ Crit %**, and **per-ability $\Delta$ DPS** gains/losses right on the live HUD during combat.
+  - **Cross-Session Progression Chart:** Track Best DPS, Average DPS, and progression trends across sessions, filterable by Target or Combat Style/Spec.
+  - **📜 Import From Past Log Files:** Scan past `combat_*.txt` files in your `CombatLogs` folder across previous gaming sessions and bookmark notable boss fights or parses into your reference library.
 - **In-Game Overlay Controls:**
   - **📌 Pin (Always On Top):** Stays visible over SWTOR when playing in *Fullscreen (Windowed)* mode
   - **▣ Mini HUD Mode:** Collapses the window into a compact stat bar during boss pulls

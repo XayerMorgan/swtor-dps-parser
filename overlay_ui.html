@@ -601,6 +601,7 @@
 
   /* Compact Mini-Overlay Mode */
   body.compact-mode .encounter-bar,
+  body.compact-mode .baseline-bar,
   body.compact-mode .tabs,
   body.compact-mode .content,
   body.compact-mode .footer,
@@ -612,6 +613,178 @@
     flex: 1;
     align-items: center;
     border-bottom: none;
+  }
+
+  /* Active Baseline Comparison Bar & Delta Badges */
+  .baseline-bar {
+    padding: 4px 12px;
+    background: linear-gradient(90deg, rgba(255, 184, 0, 0.14), rgba(0, 212, 255, 0.08));
+    border-bottom: 1px solid rgba(255, 184, 0, 0.28);
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .baseline-bar.visible {
+    display: flex;
+  }
+
+  .baseline-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  .baseline-deltas {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    flex-shrink: 0;
+  }
+
+  .delta-pill {
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    font-size: 10px;
+  }
+
+  .delta-pos {
+    background: rgba(0, 230, 118, 0.16);
+    color: var(--accent-emerald);
+    border: 1px solid rgba(0, 230, 118, 0.35);
+  }
+
+  .delta-neg {
+    background: rgba(255, 59, 92, 0.16);
+    color: var(--accent-crimson);
+    border: 1px solid rgba(255, 59, 92, 0.35);
+  }
+
+  .delta-neutral {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+  }
+
+  /* Reference Cards & History Tab */
+  .ref-card {
+    background: rgba(14, 20, 34, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 5px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    transition: all 0.15s ease;
+  }
+
+  .ref-card.is-baseline {
+    border-color: var(--accent-gold);
+    background: linear-gradient(135deg, rgba(255, 184, 0, 0.12), rgba(14, 20, 34, 0.92));
+  }
+
+  .ref-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .ref-title {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .ref-meta {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .ref-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    background: rgba(6, 9, 17, 0.65);
+    border-radius: 4px;
+    padding: 5px 6px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+  }
+
+  .ref-stat-cell {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ref-stat-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .ref-stat-val {
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .ref-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .btn-xs {
+    padding: 2px 6px;
+    font-size: 10.5px;
+  }
+
+  .summary-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+
+  .summary-box {
+    background: rgba(16, 23, 40, 0.78);
+    border: 1px solid rgba(0, 212, 255, 0.18);
+    border-radius: 4px;
+    padding: 5px 6px;
+    text-align: center;
+  }
+
+  .summary-box .s-lbl {
+    font-size: 9.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .summary-box .s-val {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    margin-top: 1px;
   }
 </style>
 </head>
@@ -657,12 +830,27 @@
     </div>
   </div>
 
-  <!-- Encounter Selector & Timer -->
+  <!-- Encounter Selector & Quick Save Reference -->
   <div class="encounter-bar">
     <select id="encounterSelect" class="encounter-select" onchange="onSelectEncounter()">
       <option value="-1">Live / Latest Encounter</option>
     </select>
+    <button id="btnQuickSaveRef" class="btn" onclick="quickSaveReference()" title="Save this encounter as a Historical Reference Point">⭐ Save Ref</button>
     <div id="timerBadge" class="timer-badge">00:00</div>
+  </div>
+
+  <!-- Active Baseline Comparison Bar -->
+  <div id="baselineBar" class="baseline-bar">
+    <div class="baseline-info" onclick="switchTab('history')" title="Click to view Historical Reference Points">
+      <span style="color: var(--accent-gold); font-weight: 700;">🎯 Ref:</span>
+      <span id="baseLabelText" style="color: var(--text-primary); font-weight: 600;">Baseline</span>
+      <span id="baseDpsText" style="color: var(--text-muted); font-family: var(--font-mono);">(0/s)</span>
+    </div>
+    <div class="baseline-deltas">
+      <span id="baseDeltaDps" class="delta-pill delta-neutral">0/s</span>
+      <span id="baseDeltaCrit" class="delta-pill delta-neutral">0.0%c</span>
+      <button class="btn btn-xs" onclick="clearActiveBaseline()" title="Clear Active Baseline Comparison">×</button>
+    </div>
   </div>
 
   <!-- Boss / Dummy HP Bar -->
@@ -681,7 +869,8 @@
     <div class="tab active" data-tab="abilities" onclick="switchTab('abilities')">Abilities</div>
     <div class="tab" data-tab="group" onclick="switchTab('group')">Group DPS</div>
     <div class="tab" data-tab="healing" onclick="switchTab('healing')">Heal & Tank</div>
-    <div class="tab" data-tab="settings" onclick="switchTab('settings')">❓ Setup & Help</div>
+    <div class="tab" data-tab="history" onclick="switchTab('history')">📈 History <span id="refCountBadge" class="meter-badge" style="display:none;">0</span></div>
+    <div class="tab" data-tab="settings" onclick="switchTab('settings')">❓ Setup</div>
   </div>
 
   <!-- Main Content -->
@@ -706,6 +895,65 @@
     <!-- Tab: Healing & Tank -->
     <div id="tab-healing" class="tab-pane" style="display: none;">
       <div id="healingList" class="meter-list"></div>
+    </div>
+
+    <!-- Tab: Historical Reference Points & Cross-Session Analysis -->
+    <div id="tab-history" class="tab-pane" style="display: none;">
+      <div class="help-step" style="margin-bottom: 8px;">
+        <h4>⭐ Save Current Fight as Reference Point</h4>
+        <div class="path-input-row" style="margin-bottom: 4px;">
+          <input id="refLabelInput" type="text" class="path-input" placeholder="Optional tag/note (e.g. '340 Gear Baseline', 'New Tactical', 'Ops Dummy')..." />
+          <button class="btn active" onclick="saveCurrentReference()">⭐ Save Reference</button>
+        </div>
+        <div id="refSaveStatus" style="font-size: 10.5px; color: var(--text-muted);">
+          Pin any saved Reference Point as your <strong>🎯 Active Baseline</strong> to see live &Delta; DPS, &Delta; Crit%, and per-ability gains/losses across gaming sessions.
+        </div>
+      </div>
+
+      <!-- Cross-Session Progression Summary & Trend Chart -->
+      <div class="chart-box">
+        <div class="chart-header" style="align-items: center;">
+          <span>Cross-Session DPS Progression</span>
+          <select id="historyFilterSelect" class="encounter-select" style="flex: 0 1 185px; padding: 2px 6px; font-size: 10.5px;" onchange="renderHistoryView()">
+            <option value="ALL">All Saved Targets & Specs</option>
+          </select>
+        </div>
+        <div class="summary-strip">
+          <div class="summary-box">
+            <div class="s-lbl">Saved Refs</div>
+            <div id="sumCount" class="s-val">0</div>
+          </div>
+          <div class="summary-box">
+            <div class="s-lbl">Best DPS</div>
+            <div id="sumBestDps" class="s-val" style="color: var(--accent-gold);">0</div>
+          </div>
+          <div class="summary-box">
+            <div class="s-lbl">Avg DPS</div>
+            <div id="sumAvgDps" class="s-val">0</div>
+          </div>
+          <div class="summary-box">
+            <div class="s-lbl">Trend (&Delta;)</div>
+            <div id="sumTrend" class="s-val">--</div>
+          </div>
+        </div>
+        <canvas id="historyCanvas" width="420" height="75" style="width:100%; height:75px; display:block;"></canvas>
+      </div>
+
+      <!-- Saved Reference Points List -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin: 6px 0 4px;">
+        <span class="kpi-label">Saved Reference Points (Persisted Across Sessions)</span>
+        <button class="btn btn-xs" onclick="scanPastSessionLogs()" title="Scan past combat_*.txt files in your CombatLogs folder">📜 Import From Past Log Files</button>
+      </div>
+      <div id="referenceList"></div>
+
+      <!-- Past Session Log Scanner Drawer -->
+      <div id="pastLogsBox" class="help-step" style="display: none; margin-top: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <h4 style="margin-bottom: 0;">📜 Encounters Found in Past Session Log Files</h4>
+          <button class="btn btn-xs" onclick="document.getElementById('pastLogsBox').style.display='none'">Close ×</button>
+        </div>
+        <div id="pastLogsList" class="cand-list"></div>
+      </div>
     </div>
 
     <!-- Tab: Setup & Help -->
@@ -776,10 +1024,19 @@
   let isSimRunning = false;
   let lastSnapshot = null;
   let fetchInFlight = false;
+  let savedReferences = [];
+  let activeBaselineId = null;
+  let expandedRefId = null;
+  let renamingRefId = null;
 
   function fmtNum(n) {
     if (n === undefined || n === null) return '0';
     return Math.round(n).toLocaleString('en-US');
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   function switchTab(tabName) {
@@ -787,12 +1044,14 @@
     document.querySelectorAll('.tab').forEach(el => {
       el.classList.toggle('active', el.dataset.tab === tabName);
     });
-    ['abilities', 'group', 'healing', 'settings'].forEach(t => {
+    ['abilities', 'group', 'healing', 'history', 'settings'].forEach(t => {
       const pane = document.getElementById('tab-' + t);
       if (pane) pane.style.display = (t === tabName) ? 'block' : 'none';
     });
     if (tabName === 'settings') {
       scanLogFolders();
+    } else if (tabName === 'history') {
+      loadReferences();
     }
     if (lastSnapshot) renderSnapshot(lastSnapshot);
   }
@@ -846,8 +1105,52 @@
     ctx.fill();
   }
 
+  function updateBaselineBanner(snap) {
+    const bar = document.getElementById('baselineBar');
+    const badge = document.getElementById('refCountBadge');
+    const refCount = snap.references_count || savedReferences.length || 0;
+    if (badge) {
+      badge.style.display = refCount > 0 ? 'inline-block' : 'none';
+      badge.textContent = String(refCount);
+    }
+
+    const base = snap.active_baseline;
+    if (!base) {
+      bar.classList.remove('visible');
+      return;
+    }
+    bar.classList.add('visible');
+    document.getElementById('baseLabelText').textContent = base.label || base.target || 'Reference';
+    document.getElementById('baseDpsText').textContent = `(${fmtNum(base.dps)}/s)`;
+
+    const dDpsEl = document.getElementById('baseDeltaDps');
+    const dCritEl = document.getElementById('baseDeltaCrit');
+
+    if (!snap.has_encounter || !snap.local_stats) {
+      dDpsEl.className = 'delta-pill delta-neutral';
+      dDpsEl.textContent = 'vs Live';
+      dCritEl.className = 'delta-pill delta-neutral';
+      dCritEl.textContent = `${(base.crit_pct || 0).toFixed(1)}%c`;
+      return;
+    }
+
+    const p = snap.local_stats;
+    const diffDps = (p.dps || 0) - (base.dps || 0);
+    const pctDps = (base.dps > 0) ? (diffDps / base.dps) * 100.0 : 0.0;
+    const signDps = diffDps >= 0 ? '+' : '';
+    const arrow = diffDps > 5 ? '▲' : (diffDps < -5 ? '▼' : '•');
+    dDpsEl.className = 'delta-pill ' + (diffDps > 5 ? 'delta-pos' : (diffDps < -5 ? 'delta-neg' : 'delta-neutral'));
+    dDpsEl.textContent = `${signDps}${fmtNum(diffDps)}/s (${signDps}${pctDps.toFixed(1)}%) ${arrow}`;
+
+    const diffCrit = (p.crit_pct || 0) - (base.crit_pct || 0);
+    const signCrit = diffCrit >= 0 ? '+' : '';
+    dCritEl.className = 'delta-pill ' + (diffCrit > 0.5 ? 'delta-pos' : (diffCrit < -0.5 ? 'delta-neg' : 'delta-neutral'));
+    dCritEl.textContent = `${signCrit}${diffCrit.toFixed(1)}%c`;
+  }
+
   function renderSnapshot(snap) {
     lastSnapshot = snap;
+    updateBaselineBanner(snap);
 
     const dot = document.getElementById('statusDot');
     dot.className = 'status-dot ' + (snap.in_combat ? 'combat' : 'ready');
@@ -890,9 +1193,10 @@
         <div class="empty-state">
           <h3>Ready for Combat</h3>
           <p>Start fighting in SWTOR (with Combat Logging enabled) or click <strong>⚡ Demo</strong> above to test live DPS parsing right now.</p>
-          <div style="display: flex; gap: 6px; justify-content: center;">
+          <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
             <button class="btn" onclick="loadSampleParse()">📊 Load Sample Parse</button>
-            <button class="btn" onclick="switchTab('settings')">❓ How to Enable Logging</button>
+            <button class="btn" onclick="switchTab('history')">📈 View Saved History</button>
+            <button class="btn" onclick="switchTab('settings')">❓ Setup Guide</button>
           </div>
         </div>`;
       document.getElementById('abilityList').innerHTML = emptyHtml;
@@ -925,19 +1229,35 @@
 
     drawSparkline(snap.timeline || []);
 
+    // Build ability lookup from active baseline if present
+    const baseAbilMap = {};
+    if (snap.active_baseline && snap.active_baseline.abilities) {
+      snap.active_baseline.abilities.forEach(ba => {
+        baseAbilMap[ba.name] = ba;
+      });
+    }
+
     const abils = p.abilities || [];
     const maxAbilDmg = abils.length > 0 ? Math.max(...abils.map(a => a.total_damage), 1) : 1;
     let abilHtml = '';
     abils.forEach((a, idx) => {
       if (a.total_damage <= 0 && a.misses === 0) return;
       const barWidth = Math.max(2, (a.total_damage / maxAbilDmg) * 100);
+      let deltaBadge = '';
+      if (baseAbilMap[a.name]) {
+        const diff = a.dps - baseAbilMap[a.name].dps;
+        const sign = diff >= 0 ? '+' : '';
+        const cls = diff > 5 ? 'delta-pos' : (diff < -5 ? 'delta-neg' : 'delta-neutral');
+        deltaBadge = `<span class="delta-pill ${cls}" title="vs Baseline (${fmtNum(baseAbilMap[a.name].dps)}/s)">${sign}${fmtNum(diff)}</span>`;
+      }
       abilHtml += `
         <div class="meter-row" title="Max Hit: ${fmtNum(a.max_hit)} | Avg Hit: ${fmtNum(a.avg_hit)} | Type: ${a.type}">
           <div class="meter-fill" style="width: ${barWidth.toFixed(1)}%;"></div>
           <div class="meter-left">
             <span class="rank-num">${idx + 1}.</span>
-            <span class="meter-name">${a.name}</span>
+            <span class="meter-name">${escHtml(a.name)}</span>
             <span class="meter-badge">${a.pct.toFixed(1)}%</span>
+            ${deltaBadge}
           </div>
           <div class="meter-right">
             <span class="stat-muted">${a.hits}h · ${a.crit_pct.toFixed(0)}%c</span>
@@ -959,8 +1279,8 @@
           <div class="${fillClass}" style="width: ${barWidth.toFixed(1)}%;"></div>
           <div class="meter-left">
             <span class="rank-num">${idx + 1}.</span>
-            <span class="meter-name">${c.name}</span>
-            ${c.discipline ? `<span class="meter-badge">${c.discipline}</span>` : ''}
+            <span class="meter-name">${escHtml(c.name)}</span>
+            ${c.discipline ? `<span class="meter-badge">${escHtml(c.discipline)}</span>` : ''}
           </div>
           <div class="meter-right">
             <span class="stat-muted">${c.crit_pct.toFixed(1)}%c · ${c.apm.toFixed(0)} APM</span>
@@ -978,7 +1298,7 @@
           <div class="meter-fill heal-bar" style="width: ${Math.min(100, Math.max(5, (c.hps / 5000) * 100))}%;"></div>
           <div class="meter-left">
             <span class="rank-num">${idx + 1}.</span>
-            <span class="meter-name">${c.name}</span>
+            <span class="meter-name">${escHtml(c.name)}</span>
           </div>
           <div class="meter-right">
             <span class="stat-muted" style="color: #ff9aa6;">Taken: ${fmtNum(c.dtps)}/s</span>
@@ -987,6 +1307,460 @@
         </div>`;
     });
     document.getElementById('healingList').innerHTML = healHtml;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Historical Reference Points & Cross-Session Analysis
+  // ---------------------------------------------------------------------------
+
+  function syncReferencesState(data) {
+    if (!data) return;
+    if (Array.isArray(data.references)) savedReferences = data.references;
+    activeBaselineId = data.active_baseline_id || null;
+    updateFilterOptions();
+    renderHistoryView();
+    fetchSnapshot();
+  }
+
+  function updateFilterOptions() {
+    const sel = document.getElementById('historyFilterSelect');
+    if (!sel) return;
+    const prev = sel.value || 'ALL';
+    const targets = new Set();
+    const specs = new Set();
+    savedReferences.forEach(r => {
+      if (r.target) targets.add(r.target);
+      if (r.discipline) specs.add(r.discipline);
+    });
+    let opts = `<option value="ALL">All Saved Sessions (${savedReferences.length})</option>`;
+    targets.forEach(t => {
+      opts += `<option value="TGT:${escHtml(t)}">Target: ${escHtml(t)}</option>`;
+    });
+    specs.forEach(s => {
+      opts += `<option value="SPEC:${escHtml(s)}">Spec: ${escHtml(s)}</option>`;
+    });
+    sel.innerHTML = opts;
+    if ([...sel.options].some(o => o.value === prev)) {
+      sel.value = prev;
+    }
+  }
+
+  async function loadReferences() {
+    try {
+      let data = null;
+      if (window.pywebview && window.pywebview.api) {
+        data = await window.pywebview.api.get_references();
+      } else {
+        const resp = await fetch('/api/references');
+        if (resp.ok) data = await resp.json();
+      }
+      if (data) syncReferencesState(data);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  async function quickSaveReference() {
+    const btn = document.getElementById('btnQuickSaveRef');
+    let res = null;
+    if (window.pywebview && window.pywebview.api) {
+      res = await window.pywebview.api.save_reference(selectedEncounterIdx, '', true);
+    } else {
+      const resp = await fetch('/api/save_reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encounter_index: selectedEncounterIdx, label: '', set_as_baseline: true }),
+      });
+      res = await resp.json();
+    }
+    if (res && res.ok) {
+      syncReferencesState(res);
+      const orig = btn.textContent;
+      btn.textContent = '✓ Saved!';
+      btn.classList.add('active');
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.classList.remove('active');
+      }, 1500);
+    } else {
+      switchTab('history');
+      const statusEl = document.getElementById('refSaveStatus');
+      if (statusEl && res && res.error) {
+        statusEl.innerHTML = `<span style="color: var(--accent-crimson);">⚠ ${escHtml(res.error)} Start a fight or load a sample parse first!</span>`;
+      }
+    }
+  }
+
+  async function saveCurrentReference() {
+    const inp = document.getElementById('refLabelInput');
+    const label = inp ? inp.value.trim() : '';
+    let res = null;
+    if (window.pywebview && window.pywebview.api) {
+      res = await window.pywebview.api.save_reference(selectedEncounterIdx, label, true);
+    } else {
+      const resp = await fetch('/api/save_reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encounter_index: selectedEncounterIdx, label: label, set_as_baseline: true }),
+      });
+      res = await resp.json();
+    }
+    const statusEl = document.getElementById('refSaveStatus');
+    if (res && res.ok) {
+      if (inp) inp.value = '';
+      if (statusEl) {
+        statusEl.innerHTML = `<span style="color: var(--accent-emerald);">✓ Saved "${escHtml(res.reference.label)}" (${fmtNum(res.reference.dps)} DPS) and pinned as Active Baseline!</span>`;
+      }
+      syncReferencesState(res);
+    } else if (statusEl) {
+      statusEl.innerHTML = `<span style="color: var(--accent-crimson);">⚠ ${(res && res.error) ? escHtml(res.error) : 'No active encounter to save.'}</span>`;
+    }
+  }
+
+  async function setBaselineRef(refId) {
+    let res = null;
+    if (window.pywebview && window.pywebview.api) {
+      res = await window.pywebview.api.set_baseline(refId);
+    } else {
+      const resp = await fetch('/api/set_baseline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ref_id: refId }),
+      });
+      res = await resp.json();
+    }
+    if (res) syncReferencesState(res);
+  }
+
+  async function clearActiveBaseline() {
+    await setBaselineRef('');
+  }
+
+  function startRenameRef(refId) {
+    renamingRefId = (renamingRefId === refId) ? null : refId;
+    renderHistoryView();
+  }
+
+  async function applyRenameRef(refId) {
+    const inp = document.getElementById('renameInput_' + refId);
+    if (!inp) return;
+    const newLabel = inp.value.trim();
+    if (!newLabel) return;
+    renamingRefId = null;
+    let res = null;
+    if (window.pywebview && window.pywebview.api) {
+      res = await window.pywebview.api.rename_reference(refId, newLabel);
+    } else {
+      const resp = await fetch('/api/rename_reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ref_id: refId, label: newLabel }),
+      });
+      res = await resp.json();
+    }
+    if (res) syncReferencesState(res);
+  }
+
+  async function deleteRef(refId) {
+    let res = null;
+    if (window.pywebview && window.pywebview.api) {
+      res = await window.pywebview.api.delete_reference(refId);
+    } else {
+      const resp = await fetch('/api/delete_reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ref_id: refId }),
+      });
+      res = await resp.json();
+    }
+    if (res) syncReferencesState(res);
+  }
+
+  function toggleExpandRef(refId) {
+    expandedRefId = (expandedRefId === refId) ? null : refId;
+    renderHistoryView();
+  }
+
+  function drawHistoryChart(filteredRefs) {
+    const canvas = document.getElementById('historyCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Chronological order (oldest -> newest)
+    const chron = [...filteredRefs].reverse();
+
+    if (chron.length === 0) {
+      ctx.fillStyle = 'rgba(138, 155, 189, 0.38)';
+      ctx.font = '11px Segoe UI';
+      ctx.fillText('Save 1+ Reference Points to chart cross-session DPS progression.', 12, h / 2 + 4);
+      return;
+    }
+
+    const values = chron.map(r => r.dps || 0);
+    const maxVal = Math.max(...values, 100) * 1.08;
+    const minVal = Math.max(0, Math.min(...values) * 0.82);
+    const span = Math.max(maxVal - minVal, 100);
+
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(255, 184, 0, 0.36)');
+    grad.addColorStop(1, 'rgba(255, 184, 0, 0.02)');
+
+    const pts = chron.map((r, i) => {
+      const x = chron.length === 1 ? w / 2 : (i / (chron.length - 1)) * (w - 28) + 14;
+      const y = h - 14 - (((r.dps - minVal) / span) * (h - 26));
+      return { x, y, r };
+    });
+
+    if (pts.length >= 2) {
+      ctx.beginPath();
+      pts.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.strokeStyle = '#ffb800';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.lineTo(pts[pts.length - 1].x, h - 4);
+      ctx.lineTo(pts[0].x, h - 4);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+
+    pts.forEach((p) => {
+      const isBase = p.r.id === activeBaselineId;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, isBase ? 4.5 : 3, 0, Math.PI * 2);
+      ctx.fillStyle = isBase ? '#00e676' : '#00d4ff';
+      ctx.fill();
+      ctx.fillStyle = '#e8f0fe';
+      ctx.font = '9.5px Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(fmtNum(p.r.dps), p.x, Math.max(10, p.y - 6));
+    });
+  }
+
+  function renderHistoryView() {
+    const filterSel = document.getElementById('historyFilterSelect');
+    const filterVal = filterSel ? filterSel.value : 'ALL';
+    const filtered = savedReferences.filter(r => {
+      if (filterVal.startsWith('TGT:')) return r.target === filterVal.slice(4);
+      if (filterVal.startsWith('SPEC:')) return r.discipline === filterVal.slice(5);
+      return true;
+    });
+
+    document.getElementById('sumCount').textContent = String(filtered.length);
+    if (filtered.length > 0) {
+      const dpsArr = filtered.map(r => r.dps || 0);
+      const best = Math.max(...dpsArr);
+      const avg = dpsArr.reduce((a, b) => a + b, 0) / dpsArr.length;
+      document.getElementById('sumBestDps').textContent = fmtNum(best);
+      document.getElementById('sumAvgDps').textContent = fmtNum(avg);
+
+      if (filtered.length >= 2) {
+        const oldest = filtered[filtered.length - 1].dps || 0;
+        const newest = filtered[0].dps || 0;
+        const diff = newest - oldest;
+        const pct = oldest > 0 ? (diff / oldest) * 100.0 : 0.0;
+        const sign = diff >= 0 ? '+' : '';
+        const trendEl = document.getElementById('sumTrend');
+        trendEl.textContent = `${sign}${pct.toFixed(1)}%`;
+        trendEl.style.color = diff >= 0 ? 'var(--accent-emerald)' : 'var(--accent-crimson)';
+      } else {
+        const trendEl = document.getElementById('sumTrend');
+        trendEl.textContent = 'Baseline';
+        trendEl.style.color = 'var(--text-muted)';
+      }
+    } else {
+      document.getElementById('sumBestDps').textContent = '0';
+      document.getElementById('sumAvgDps').textContent = '0';
+      document.getElementById('sumTrend').textContent = '--';
+    }
+
+    drawHistoryChart(filtered);
+
+    const listEl = document.getElementById('referenceList');
+    if (!listEl) return;
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = `
+        <div class="empty-state" style="padding: 14px 10px;">
+          <h3>No Saved Reference Points Yet</h3>
+          <p>Click <strong>⭐ Save Ref</strong> on any fight or click <strong>📜 Import From Past Log Files</strong> above to build your cross-session history.</p>
+        </div>`;
+      return;
+    }
+
+    const liveAbilMap = {};
+    if (lastSnapshot && lastSnapshot.has_encounter && lastSnapshot.local_stats && lastSnapshot.local_stats.abilities) {
+      lastSnapshot.local_stats.abilities.forEach(a => {
+        liveAbilMap[a.name] = a;
+      });
+    }
+
+    let html = '';
+    filtered.forEach(r => {
+      const isBase = r.id === activeBaselineId;
+      const isExpanded = r.id === expandedRefId;
+      const isRenaming = r.id === renamingRefId;
+
+      let vsLiveBadge = '';
+      if (lastSnapshot && lastSnapshot.has_encounter && lastSnapshot.local_stats) {
+        const liveDps = lastSnapshot.local_stats.dps || 0;
+        const diff = liveDps - (r.dps || 0);
+        const sign = diff >= 0 ? '+' : '';
+        const cls = diff > 5 ? 'delta-pos' : (diff < -5 ? 'delta-neg' : 'delta-neutral');
+        vsLiveBadge = `<span class="delta-pill ${cls}" title="Current Live Fight vs This Reference">Live: ${sign}${fmtNum(diff)}/s</span>`;
+      }
+
+      let abilCompareHtml = '';
+      if (isExpanded && r.abilities && r.abilities.length > 0) {
+        let rows = '';
+        r.abilities.slice(0, 8).forEach((ab, idx) => {
+          const liveAb = liveAbilMap[ab.name];
+          let diffTxt = '';
+          if (liveAb) {
+            const d = liveAb.dps - ab.dps;
+            const s = d >= 0 ? '+' : '';
+            const c = d > 5 ? 'color: var(--accent-emerald);' : (d < -5 ? 'color: var(--accent-crimson);' : 'color: var(--text-muted);');
+            diffTxt = `<span style="${c}">Live: ${fmtNum(liveAb.dps)}/s (${s}${fmtNum(d)})</span>`;
+          }
+          rows += `
+            <div style="display:flex; justify-content:space-between; font-size:10.5px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-family:var(--font-mono);">
+              <span style="color:var(--text-primary); font-family:var(--font-ui);">${idx + 1}. ${escHtml(ab.name)} <span style="color:var(--text-muted);">(${ab.pct}% · ${ab.crit_pct}%c)</span></span>
+              <span style="display:flex; gap:8px;">
+                <span style="color:var(--accent-gold);">${fmtNum(ab.dps)}/s</span>
+                ${diffTxt}
+              </span>
+            </div>`;
+        });
+        abilCompareHtml = `
+          <div style="margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.1);">
+            <div class="kpi-label" style="margin-bottom:3px;">Saved Ability Breakdown ${Object.keys(liveAbilMap).length ? '(vs Current Fight)' : ''}:</div>
+            ${rows}
+          </div>`;
+      }
+
+      const renameRow = isRenaming ? `
+        <div class="path-input-row" style="margin: 4px 0 6px;">
+          <input id="renameInput_${r.id}" type="text" class="path-input" value="${escHtml(r.label)}" />
+          <button class="btn btn-xs active" onclick="applyRenameRef('${r.id}')">✓ Save Tag</button>
+        </div>` : '';
+
+      html += `
+        <div class="ref-card ${isBase ? 'is-baseline' : ''}">
+          <div class="ref-header">
+            <div class="ref-title">
+              <span>${isBase ? '🎯 ' : '⭐ '}${escHtml(r.label)}</span>
+              ${vsLiveBadge}
+            </div>
+            <div class="ref-actions">
+              <button class="btn btn-xs ${isBase ? 'active' : ''}" onclick="setBaselineRef('${r.id}')" title="Pin/Unpin as Active Baseline for Live HUD Comparison">${isBase ? '🎯 Active Ref' : 'Set Baseline'}</button>
+              <button class="btn btn-xs" onclick="toggleExpandRef('${r.id}')" title="View Ability Breakdown & Compare">${isExpanded ? '▲ Hide' : '▼ Abilities'}</button>
+              <button class="btn btn-xs" onclick="startRenameRef('${r.id}')" title="Edit Tag / Gear Note">✏️</button>
+              <button class="btn btn-xs" onclick="deleteRef('${r.id}')" title="Delete Reference Point">🗑️</button>
+            </div>
+          </div>
+          ${renameRow}
+          <div class="ref-meta">
+            <span>📅 ${escHtml(r.saved_at || r.session_date)}</span>
+            <span>👤 ${escHtml(r.character)}${r.discipline ? ' (' + escHtml(r.discipline) + ')' : ''}</span>
+            <span>🎯 ${escHtml(r.target)} (${escHtml(r.duration)})</span>
+          </div>
+          <div class="ref-stats-grid">
+            <div class="ref-stat-cell">
+              <span class="ref-stat-label">DPS / Total</span>
+              <span class="ref-stat-val" style="color: var(--accent-gold);">${fmtNum(r.dps)}/s <span style="font-weight:400; color:var(--text-muted);">(${fmtNum(r.total_damage)})</span></span>
+            </div>
+            <div class="ref-stat-cell">
+              <span class="ref-stat-label">Crit / Acc</span>
+              <span class="ref-stat-val">${(r.crit_pct || 0).toFixed(1)}% / ${(r.accuracy_pct || 100).toFixed(1)}%</span>
+            </div>
+            <div class="ref-stat-cell">
+              <span class="ref-stat-label">APM / Hits</span>
+              <span class="ref-stat-val">${(r.apm || 0).toFixed(1)} <span style="font-weight:400; color:var(--text-muted);">(${r.hits || 0}h)</span></span>
+            </div>
+            <div class="ref-stat-cell">
+              <span class="ref-stat-label">Max Hit</span>
+              <span class="ref-stat-val" title="${escHtml(r.max_hit_ability)}">${fmtNum(r.max_hit)}</span>
+            </div>
+          </div>
+          ${abilCompareHtml}
+        </div>`;
+    });
+    listEl.innerHTML = html;
+  }
+
+  async function scanPastSessionLogs() {
+    const box = document.getElementById('pastLogsBox');
+    const list = document.getElementById('pastLogsList');
+    if (!box || !list) return;
+    box.style.display = 'block';
+    list.innerHTML = '<div style="font-size:11px; color:var(--text-muted);">Scanning past combat_*.txt files in your CombatLogs folder...</div>';
+
+    try {
+      let items = [];
+      if (window.pywebview && window.pywebview.api) {
+        items = await window.pywebview.api.scan_past_logs();
+      } else {
+        const resp = await fetch('/api/scan_past_logs');
+        if (resp.ok) items = await resp.json();
+      }
+      if (!items || items.length === 0) {
+        list.innerHTML = '<div style="font-size:11px; color:var(--text-muted);">No multi-second combat encounters found in past log files yet.</div>';
+        return;
+      }
+      window._pastLogItems = items;
+      let html = '';
+      items.forEach((it, idx) => {
+        html += `
+          <div class="cand-item">
+            <div class="cand-info">
+              <div class="cand-title">
+                <span>🎯 ${escHtml(it.target)} (${escHtml(it.duration)})</span>
+                <span class="meter-badge" style="color:var(--accent-gold);">${fmtNum(it.dps)} DPS</span>
+                <span class="meter-badge">${it.crit_pct.toFixed(1)}%c · ${it.apm.toFixed(1)} APM</span>
+              </div>
+              <div class="cand-path">📅 ${escHtml(it.session_time)} · 👤 ${escHtml(it.character)} ${it.discipline ? '(' + escHtml(it.discipline) + ')' : ''} · ${escHtml(it.area)}</div>
+            </div>
+            <button id="btnImportPast_${idx}" class="btn btn-xs active" onclick="importPastItem(${idx})">+ Save Ref</button>
+          </div>`;
+      });
+      list.innerHTML = html;
+    } catch (e) {
+      list.innerHTML = '<div style="font-size:11px; color:var(--accent-crimson);">Error scanning past logs.</div>';
+    }
+  }
+
+  async function importPastItem(idx) {
+    const items = window._pastLogItems || [];
+    const it = items[idx];
+    if (!it) return;
+    const btn = document.getElementById('btnImportPast_' + idx);
+    if (btn) btn.textContent = 'Saving...';
+    const label = `${it.target} (${it.session_time})`;
+    let res = null;
+    if (window.pywebview && window.pywebview.api) {
+      res = await window.pywebview.api.import_past_encounter(it.file_name, it.encounter_index, label);
+    } else {
+      const resp = await fetch('/api/import_past_encounter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_name: it.file_name, encounter_index: it.encounter_index, label: label }),
+      });
+      res = await resp.json();
+    }
+    if (res && res.ok) {
+      if (btn) {
+        btn.textContent = '✓ Saved';
+        btn.classList.remove('active');
+      }
+      syncReferencesState(res);
+    }
   }
 
   async function fetchSnapshot() {
@@ -1160,7 +1934,13 @@
 
   setInterval(fetchSnapshot, 250);
   window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(fetchSnapshot, 100);
+    setTimeout(() => {
+      fetchSnapshot();
+      loadReferences();
+    }, 100);
+  });
+  window.addEventListener('pywebviewready', () => {
+    loadReferences();
   });
 </script>
 </body>

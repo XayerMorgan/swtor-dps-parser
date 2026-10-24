@@ -252,9 +252,10 @@ class SWTORLogParser:
 
     COMBAT_TIMEOUT_SECONDS = 25.0  # Auto-close encounter if no combat events for 25s
     SETTINGS_FILE = Path(os.environ.get("APPDATA", os.path.expanduser("~"))) / "SWTOR_Holocron_DPS" / "settings.json"
+    REFERENCES_FILE = Path(os.environ.get("APPDATA", os.path.expanduser("~"))) / "SWTOR_Holocron_DPS" / "history_references.json"
 
-    def __init__(self, log_dir: Optional[str] = None):
-        saved_dir = self._load_saved_log_dir()
+    def __init__(self, log_dir: Optional[str] = None, load_history: bool = True):
+        saved_dir = self._load_saved_log_dir() if load_history else None
         self.log_dir = self._resolve_default_log_dir(log_dir or saved_dir)
         self.current_file: Optional[Path] = None
         self.file_pos: int = 0
@@ -271,6 +272,12 @@ class SWTORLogParser:
         self.active_encounter: Optional[Encounter] = None
         self._encounter_counter: int = 0
         self._last_timeline_bucket: int = -1
+
+        self.references: List[dict] = []
+        self.active_baseline_id: Optional[str] = None
+        self._persist_history: bool = load_history
+        if load_history:
+            self._load_references_from_disk()
 
     @classmethod
     def _load_saved_log_dir(cls) -> Optional[str]:
@@ -467,6 +474,22 @@ class SWTORLogParser:
         self.file_pos = 0
         self.last_parsed_time = None
         self.base_date = self._extract_date_from_filename(file_path.name)
+
+    def load_entire_file(self, file_path: Path) -> int:
+        """Reads and parses an entire combat_*.txt log file from start to finish."""
+        self.set_log_file(file_path, read_from_start=True)
+        if not file_path.exists():
+            return 0
+        count = 0
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    self.parse_line(line)
+                    count += 1
+            self._prune_empty_encounters()
+        except OSError:
+            pass
+        return count
 
     @staticmethod
     def _extract_date_from_filename(filename: str) -> datetime:
@@ -896,6 +919,8 @@ class SWTORLogParser:
                 "discipline": self.local_discipline,
                 "area": self.current_area,
                 "encounters": encounter_list,
+                "active_baseline": self.get_active_baseline(),
+                "references_count": len(self.references),
             }
 
         dur = enc.duration_seconds
@@ -999,4 +1024,249 @@ class SWTORLogParser:
             "combatants": combatants_list,
             "timeline": enc.dps_timeline[-120:],
             "encounters": encounter_list,
+            "active_baseline": self.get_active_baseline(),
+            "references_count": len(self.references),
         }
+
+    # -------------------------------------------------------------------------
+    # Historical Reference Points & Cross-Session Analysis
+    # -------------------------------------------------------------------------
+
+    def _load_references_from_disk(self) -> None:
+        try:
+            if self.REFERENCES_FILE.exists():
+                import json
+                data = json.loads(self.REFERENCES_FILE.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    self.references = list(data.get("references", []))
+                    self.active_baseline_id = data.get("active_baseline_id")
+                elif isinstance(data, list):
+                    self.references = data
+        except Exception:
+            self.references = []
+            self.active_baseline_id = None
+
+    def _save_references_to_disk(self) -> None:
+        if not self._persist_history:
+            return
+        try:
+            import json
+            self.REFERENCES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "active_baseline_id": self.active_baseline_id,
+                "references": self.references,
+            }
+            self.REFERENCES_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def get_active_baseline(self) -> Optional[dict]:
+        if not self.active_baseline_id:
+            return None
+        for r in self.references:
+            if r.get("id") == self.active_baseline_id:
+                return r
+        return None
+
+    def get_references_state(self) -> dict:
+        return {
+            "references": self.references,
+            "active_baseline_id": self.active_baseline_id,
+            "active_baseline": self.get_active_baseline(),
+        }
+
+    def _build_reference_from_snapshot(self, snap: dict, label: str = "") -> Optional[dict]:
+        if not snap.get("has_encounter") or not snap.get("local_stats"):
+            return None
+        p = snap["local_stats"]
+        abilities = p.get("abilities", [])
+        max_hit = 0
+        max_hit_ability = ""
+        for a in abilities:
+            if a.get("max_hit", 0) > max_hit:
+                max_hit = a["max_hit"]
+                max_hit_ability = a.get("name", "")
+
+        now = datetime.now()
+        ref_id = f"ref_{int(now.timestamp() * 1000)}_{len(self.references) + 1}"
+        target_name = snap.get("title") or "Combat Encounter"
+        discipline = p.get("discipline") or snap.get("discipline") or ""
+        char_name = p.get("name") or snap.get("local_player") or "Player"
+        clean_label = label.strip() if label else ""
+        if not clean_label:
+            clean_label = f"{target_name} ({snap.get('duration', '00:00')})"
+
+        log_file = snap.get("log_file") or ""
+        session_date = now.strftime("%Y-%m-%d")
+        m_date = re.search(r"combat_(\d{4}-\d{2}-\d{2})", log_file)
+        if m_date:
+            session_date = m_date.group(1)
+
+        return {
+            "id": ref_id,
+            "saved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "session_date": session_date,
+            "label": clean_label,
+            "character": char_name,
+            "discipline": discipline,
+            "target": target_name,
+            "area": snap.get("area") or "Unknown Area",
+            "log_file": log_file,
+            "duration": snap.get("duration", "00:00"),
+            "duration_seconds": snap.get("duration_seconds", 1.0),
+            "dps": p.get("dps", 0.0),
+            "edps": p.get("edps", 0.0),
+            "total_damage": p.get("damage", 0),
+            "hps": p.get("hps", 0.0),
+            "total_heal": p.get("heal", 0),
+            "dtps": p.get("dtps", 0.0),
+            "damage_taken": p.get("damage_taken", 0),
+            "apm": p.get("apm", 0.0),
+            "crit_pct": p.get("crit_pct", 0.0),
+            "accuracy_pct": p.get("accuracy_pct", 100.0),
+            "hits": p.get("hits", 0),
+            "misses": p.get("misses", 0),
+            "max_hit": max_hit,
+            "max_hit_ability": max_hit_ability,
+            "abilities": [
+                {
+                    "name": a["name"],
+                    "dps": a["dps"],
+                    "pct": a["pct"],
+                    "crit_pct": a["crit_pct"],
+                    "avg_hit": a["avg_hit"],
+                    "max_hit": a["max_hit"],
+                    "hits": a["hits"],
+                    "total_damage": a["total_damage"],
+                }
+                for a in abilities[:15]
+            ],
+        }
+
+    def save_reference_point(
+        self,
+        encounter_index: Optional[int] = None,
+        label: str = "",
+        set_as_baseline: bool = True,
+    ) -> dict:
+        snap = self.get_snapshot(encounter_index)
+        ref = self._build_reference_from_snapshot(snap, label=label)
+        if not ref:
+            return {
+                "ok": False,
+                "error": "No active or completed combat encounter to save yet.",
+                **self.get_references_state(),
+            }
+        self.references.insert(0, ref)
+        if set_as_baseline or not self.active_baseline_id:
+            self.active_baseline_id = ref["id"]
+        self._save_references_to_disk()
+        return {
+            "ok": True,
+            "reference": ref,
+            **self.get_references_state(),
+        }
+
+    def set_active_baseline(self, ref_id: Optional[str]) -> dict:
+        if not ref_id or ref_id == self.active_baseline_id:
+            self.active_baseline_id = None
+        else:
+            if any(r.get("id") == ref_id for r in self.references):
+                self.active_baseline_id = ref_id
+        self._save_references_to_disk()
+        return {"ok": True, **self.get_references_state()}
+
+    def update_reference_label(self, ref_id: str, label: str) -> dict:
+        clean = label.strip()
+        if not clean:
+            return {"ok": False, **self.get_references_state()}
+        for r in self.references:
+            if r.get("id") == ref_id:
+                r["label"] = clean
+                break
+        self._save_references_to_disk()
+        return {"ok": True, **self.get_references_state()}
+
+    def delete_reference_point(self, ref_id: str) -> dict:
+        self.references = [r for r in self.references if r.get("id") != ref_id]
+        if self.active_baseline_id == ref_id:
+            self.active_baseline_id = self.references[0]["id"] if self.references else None
+        self._save_references_to_disk()
+        return {"ok": True, **self.get_references_state()}
+
+    def scan_historical_logs(self, max_files: int = 8, min_duration: float = 12.0, max_results: int = 60) -> List[dict]:
+        """
+        Scans past combat_*.txt log files in self.log_dir across gaming sessions
+        and returns a list of notable encounters that can be saved as Reference Points.
+        """
+        if not self.log_dir.exists():
+            return []
+        try:
+            files = sorted(
+                self.log_dir.glob("combat_*.txt"),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True,
+            )[:max_files]
+        except OSError:
+            return []
+
+        results: List[dict] = []
+        for fpath in files:
+            temp = SWTORLogParser(log_dir=str(self.log_dir), load_history=False)
+            temp.load_entire_file(fpath)
+            temp._prune_empty_encounters()
+            m_date = re.search(r"combat_(\d{4}-\d{2}-\d{2})_(\d{2})_(\d{2})", fpath.name)
+            session_str = f"{m_date.group(1)} {m_date.group(2)}:{m_date.group(3)}" if m_date else fpath.name
+
+            file_items: List[dict] = []
+            for idx, enc in enumerate(temp.encounters):
+                if enc.duration_seconds < min_duration:
+                    continue
+                snap = temp.get_snapshot(idx)
+                p = snap.get("local_stats")
+                if not p or (p.get("damage", 0) <= 0 and p.get("heal", 0) <= 0):
+                    continue
+                file_items.append({
+                    "file_name": fpath.name,
+                    "session_time": session_str,
+                    "encounter_index": idx,
+                    "encounter_id": enc.encounter_id,
+                    "start_time": enc.start_time.strftime("%H:%M:%S"),
+                    "character": p.get("name") or snap.get("local_player") or "Player",
+                    "discipline": p.get("discipline") or snap.get("discipline") or "",
+                    "target": snap.get("title") or "Combat Encounter",
+                    "area": snap.get("area") or "Unknown Area",
+                    "duration": snap.get("duration", "00:00"),
+                    "duration_seconds": snap.get("duration_seconds", 1.0),
+                    "dps": p.get("dps", 0.0),
+                    "total_damage": p.get("damage", 0),
+                    "crit_pct": p.get("crit_pct", 0.0),
+                    "apm": p.get("apm", 0.0),
+                })
+            # Keep top 15 biggest/longest fights per session file, ordered by most damage
+            file_items.sort(key=lambda x: x["total_damage"], reverse=True)
+            results.extend(file_items[:15])
+            if len(results) >= max_results:
+                break
+        return results[:max_results]
+
+    def import_historical_encounter(self, file_name: str, encounter_index: int, label: str = "") -> dict:
+        """Imports a specific encounter from a past combat_*.txt file into saved Reference Points."""
+        fpath = self.log_dir / file_name
+        if not fpath.exists():
+            return {"ok": False, "error": f"Log file not found: {file_name}", **self.get_references_state()}
+        temp = SWTORLogParser(log_dir=str(self.log_dir), load_history=False)
+        temp.load_entire_file(fpath)
+        temp._prune_empty_encounters()
+        if encounter_index < 0 or encounter_index >= len(temp.encounters):
+            return {"ok": False, "error": "Encounter index out of range", **self.get_references_state()}
+        snap = temp.get_snapshot(encounter_index)
+        snap["log_file"] = fpath.name
+        ref = self._build_reference_from_snapshot(snap, label=label)
+        if not ref:
+            return {"ok": False, "error": "Could not build reference from encounter", **self.get_references_state()}
+        self.references.insert(0, ref)
+        if not self.active_baseline_id:
+            self.active_baseline_id = ref["id"]
+        self._save_references_to_disk()
+        return {"ok": True, "reference": ref, **self.get_references_state()}
