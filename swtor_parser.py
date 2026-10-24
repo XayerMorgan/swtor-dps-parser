@@ -251,9 +251,11 @@ class SWTORLogParser:
     """
 
     COMBAT_TIMEOUT_SECONDS = 25.0  # Auto-close encounter if no combat events for 25s
+    SETTINGS_FILE = Path(os.environ.get("APPDATA", os.path.expanduser("~"))) / "SWTOR_Holocron_DPS" / "settings.json"
 
     def __init__(self, log_dir: Optional[str] = None):
-        self.log_dir = self._resolve_default_log_dir(log_dir)
+        saved_dir = self._load_saved_log_dir()
+        self.log_dir = self._resolve_default_log_dir(log_dir or saved_dir)
         self.current_file: Optional[Path] = None
         self.file_pos: int = 0
         self.base_date: datetime = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -270,33 +272,189 @@ class SWTORLogParser:
         self._encounter_counter: int = 0
         self._last_timeline_bucket: int = -1
 
-    @staticmethod
-    def _resolve_default_log_dir(custom_dir: Optional[str] = None) -> Path:
-        user_profile = os.environ.get("USERPROFILE", os.path.expanduser("~"))
-        candidates: List[Path] = []
-        if custom_dir:
-            p = Path(custom_dir)
-            candidates.append(p)
-            # Also check OneDrive equivalent if user passed C:\Users\<user>\Documents\...
-            if "OneDrive" not in str(p) and "Documents" in str(p):
-                parts = str(p).split("Documents", 1)
-                candidates.append(Path(parts[0]) / "OneDrive" / "Documents" / parts[1].lstrip("\\/"))
+    @classmethod
+    def _load_saved_log_dir(cls) -> Optional[str]:
+        try:
+            if cls.SETTINGS_FILE.exists():
+                import json
+                data = json.loads(cls.SETTINGS_FILE.read_text(encoding="utf-8"))
+                saved = data.get("log_dir", "").strip()
+                if saved and Path(saved).exists():
+                    return saved
+        except Exception:
+            pass
+        return None
 
-        candidates.extend([
-            Path(user_profile) / "OneDrive" / "Documents" / "Star Wars - The Old Republic" / "CombatLogs",
-            Path(user_profile) / "Documents" / "Star Wars - The Old Republic" / "CombatLogs",
-        ])
-        # Prefer the candidate directory that actually contains combat_*.txt files
-        for c in candidates:
+    @classmethod
+    def save_log_dir_preference(cls, log_dir: Path) -> None:
+        try:
+            import json
+            cls.SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            cls.SETTINGS_FILE.write_text(
+                json.dumps({"log_dir": str(log_dir)}, indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def discover_log_directories(current_dir: Optional[Path] = None) -> List[dict]:
+        """
+        Intelligently scans the user's Windows system for all candidate SWTOR CombatLogs
+        directories across:
+        - Windows Shell Folders registry (Personal / Documents, including custom drive relocation)
+        - OneDrive, OneDriveCommercial, OneDriveConsumer environment variables
+        - Standard UserProfile Documents & OneDrive Documents
+        - Localized SWTOR folder names (English, German, French)
+        - Secondary drives (C:, D:, E:, F:, G:)
+        Returns a ranked list of candidate dicts with path, label, exists, log_count, latest_file, latest_mtime.
+        """
+        user_profile = Path(os.environ.get("USERPROFILE", os.path.expanduser("~")))
+        swtor_folder_names = [
+            "Star Wars - The Old Republic",
+            "Star Wars - The Old Republic - Die Alte Republik",  # German client sometimes uses standard, check both
+        ]
+
+        raw_candidates: List[Tuple[Path, str]] = []
+
+        if current_dir:
+            raw_candidates.append((Path(current_dir), "Current / Custom Selection"))
+
+        # 1. Windows Registry Shell Folders (handles relocated Documents folders on D:\, E:\, etc.)
+        try:
+            import winreg
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders",
+            ) as key:
+                personal_val, _ = winreg.QueryValueEx(key, "Personal")
+                expanded = os.path.expandvars(str(personal_val))
+                raw_candidates.append(
+                    (Path(expanded) / "Star Wars - The Old Republic" / "CombatLogs", "Windows Registry 'My Documents' Path")
+                )
+        except Exception:
+            pass
+
+        # 2. OneDrive Environment Variables (Personal & Business/University OneDrive)
+        for env_key, desc in [
+            ("OneDrive", "OneDrive Documents"),
+            ("OneDriveConsumer", "OneDrive Personal Documents"),
+            ("OneDriveCommercial", "OneDrive Work/School Documents"),
+        ]:
+            val = os.environ.get(env_key)
+            if val:
+                raw_candidates.append(
+                    (Path(val) / "Documents" / "Star Wars - The Old Republic" / "CombatLogs", desc)
+                )
+                # Localized German/French Documents inside OneDrive
+                for doc_alias in ("Dokumente", "Mes documents"):
+                    p_alias = Path(val) / doc_alias / "Star Wars - The Old Republic" / "CombatLogs"
+                    if p_alias.exists():
+                        raw_candidates.append((p_alias, f"{desc} ({doc_alias})"))
+
+        # 3. Standard UserProfile paths
+        raw_candidates.append(
+            (user_profile / "Documents" / "Star Wars - The Old Republic" / "CombatLogs", "Standard Local Documents")
+        )
+        raw_candidates.append(
+            (user_profile / "OneDrive" / "Documents" / "Star Wars - The Old Republic" / "CombatLogs", "OneDrive Redirected Documents")
+        )
+
+        # 4. Scan any OneDrive-* folders in UserProfile (e.g. "OneDrive - Personal", "OneDrive - Company")
+        try:
+            for item in user_profile.glob("OneDrive*"):
+                if item.is_dir():
+                    raw_candidates.append(
+                        (item / "Documents" / "Star Wars - The Old Republic" / "CombatLogs", f"{item.name} Documents")
+                    )
+        except Exception:
+            pass
+
+        # 5. Check other drives (D:, E:, F:, G:) for relocated Documents or Users folders
+        username = user_profile.name
+        for drive in ("D:", "E:", "F:", "G:"):
+            drive_root = Path(f"{drive}\\")
+            if not drive_root.exists():
+                continue
+            for cand_path, label in [
+                (drive_root / "Documents" / "Star Wars - The Old Republic" / "CombatLogs", f"Relocated {drive}\\Documents"),
+                (drive_root / "Users" / username / "Documents" / "Star Wars - The Old Republic" / "CombatLogs", f"{drive}\\Users\\{username}\\Documents"),
+                (drive_root / "Users" / username / "OneDrive" / "Documents" / "Star Wars - The Old Republic" / "CombatLogs", f"{drive}\\Users\\{username}\\OneDrive\\Documents"),
+            ]:
+                if cand_path.exists() or cand_path.parent.exists():
+                    raw_candidates.append((cand_path, label))
+
+        # Deduplicate while preserving order and gathering stats
+        seen_norm: set[str] = set()
+        results: List[dict] = []
+
+        for path_obj, label in raw_candidates:
             try:
-                if c.exists() and any(c.glob("combat_*.txt")):
-                    return c
+                norm = os.path.normcase(os.path.abspath(str(path_obj)))
+            except Exception:
+                norm = str(path_obj).lower()
+            if norm in seen_norm:
+                continue
+            seen_norm.add(norm)
+
+            exists = False
+            parent_exists = False
+            log_count = 0
+            latest_file = ""
+            latest_mtime = 0.0
+            latest_time_str = "No logs yet"
+
+            try:
+                exists = path_obj.exists()
+                parent_exists = path_obj.parent.exists()
+                if exists:
+                    files = list(path_obj.glob("combat_*.txt")) or list(path_obj.glob("*.txt"))
+                    log_count = len(files)
+                    if files:
+                        newest = max(files, key=lambda p: p.stat().st_mtime)
+                        latest_file = newest.name
+                        latest_mtime = newest.stat().st_mtime
+                        latest_time_str = datetime.fromtimestamp(latest_mtime).strftime("%Y-%m-%d %H:%M")
             except OSError:
                 pass
-        for c in candidates:
-            if c.exists():
-                return c
-        return candidates[0]
+
+            # Include if it exists, or its parent "Star Wars - The Old Republic" folder exists, or it's one of the primary 2 defaults
+            if exists or parent_exists or len(results) < 2:
+                results.append({
+                    "path": str(path_obj),
+                    "label": label,
+                    "exists": exists,
+                    "parent_exists": parent_exists,
+                    "log_count": log_count,
+                    "latest_file": latest_file,
+                    "latest_mtime": latest_mtime,
+                    "latest_time": latest_time_str,
+                })
+
+        # Sort: folders with the most recent log files first, then folders that exist, then others
+        results.sort(key=lambda r: (r["log_count"] > 0, r["latest_mtime"], r["exists"], r["parent_exists"]), reverse=True)
+        return results
+
+    @classmethod
+    def _resolve_default_log_dir(cls, custom_dir: Optional[str] = None) -> Path:
+        if custom_dir:
+            p = Path(custom_dir)
+            if p.exists() and any(p.glob("*.txt")):
+                return p
+            # If user passed a parent folder (e.g. "...\Star Wars - The Old Republic"), check its CombatLogs child
+            if (p / "CombatLogs").exists():
+                return p / "CombatLogs"
+
+        discovered = cls.discover_log_directories(Path(custom_dir) if custom_dir else None)
+        for cand in discovered:
+            if cand["log_count"] > 0:
+                return Path(cand["path"])
+        for cand in discovered:
+            if cand["exists"]:
+                return Path(cand["path"])
+        if custom_dir:
+            return Path(custom_dir)
+        return Path(discovered[0]["path"]) if discovered else Path.home() / "Documents" / "Star Wars - The Old Republic" / "CombatLogs"
 
     def reset_all(self) -> None:
         self.encounters.clear()

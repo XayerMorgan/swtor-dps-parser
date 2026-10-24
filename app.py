@@ -273,8 +273,12 @@ class OverlayBridgeAPI:
                 dlg.SelectedPath = str(self._parser.log_dir)
                 if dlg.ShowDialog() == WinForms.DialogResult.OK and dlg.SelectedPath:
                     chosen = Path(dlg.SelectedPath)
+                    if (chosen / "CombatLogs").exists() and not any(chosen.glob("combat_*.txt")):
+                        chosen = chosen / "CombatLogs"
                     with self._lock:
                         self._parser.log_dir = chosen
+                        self._parser.save_log_dir_preference(chosen)
+                        self._parser.reset_all()
                         self._parser.current_file = None
                         self._parser.file_pos = 0
                         self._parser.poll()
@@ -291,6 +295,37 @@ class OverlayBridgeAPI:
         except Exception:
             pass
         return result_holder[0]
+
+    def set_log_dir(self, path_str: str) -> dict:
+        """Sets the CombatLogs directory directly from a path string or discovered candidate."""
+        raw = os.path.expandvars(path_str.strip().strip('"').strip("'"))
+        if not raw:
+            return {"ok": False, "error": "Please enter a valid folder path.", "log_dir": str(self._parser.log_dir)}
+        chosen = Path(raw)
+        # If user selected the parent "Star Wars - The Old Republic" or "Documents" folder, resolve into CombatLogs
+        if (chosen / "Star Wars - The Old Republic" / "CombatLogs").exists():
+            chosen = chosen / "Star Wars - The Old Republic" / "CombatLogs"
+        elif (chosen / "CombatLogs").exists() and not any(chosen.glob("combat_*.txt")):
+            chosen = chosen / "CombatLogs"
+
+        with self._lock:
+            self._parser.log_dir = chosen
+            self._parser.save_log_dir_preference(chosen)
+            self._parser.reset_all()
+            self._parser.current_file = None
+            self._parser.file_pos = 0
+            self._parser.poll()
+        return {
+            "ok": True,
+            "exists": chosen.exists(),
+            "log_dir": str(chosen),
+            "candidates": self._parser.discover_log_directories(chosen),
+        }
+
+    def discover_log_dirs(self) -> list:
+        """Scans the system for all candidate SWTOR CombatLogs directories."""
+        with self._lock:
+            return self._parser.discover_log_directories(self._parser.log_dir)
 
     def open_log_dir(self) -> bool:
         try:
@@ -366,6 +401,35 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
         with lock:
             parser.reset_all()
         return JSONResponse({"ok": True})
+
+    @app.get("/api/discover_dirs")
+    def api_discover_dirs():
+        with lock:
+            return JSONResponse(parser.discover_log_directories(parser.log_dir))
+
+    @app.post("/api/set_dir")
+    def api_set_dir(payload: dict):
+        raw = os.path.expandvars(str(payload.get("path", "")).strip().strip('"').strip("'"))
+        if not raw:
+            return JSONResponse({"ok": False, "error": "Empty path"})
+        chosen = Path(raw)
+        if (chosen / "Star Wars - The Old Republic" / "CombatLogs").exists():
+            chosen = chosen / "Star Wars - The Old Republic" / "CombatLogs"
+        elif (chosen / "CombatLogs").exists() and not any(chosen.glob("combat_*.txt")):
+            chosen = chosen / "CombatLogs"
+        with lock:
+            parser.log_dir = chosen
+            parser.save_log_dir_preference(chosen)
+            parser.reset_all()
+            parser.current_file = None
+            parser.file_pos = 0
+            parser.poll()
+        return JSONResponse({
+            "ok": True,
+            "exists": chosen.exists(),
+            "log_dir": str(chosen),
+            "candidates": parser.discover_log_directories(chosen),
+        })
 
     print(f"SWTOR Holocron DPS Web UI running at http://127.0.0.1:{port}")
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")

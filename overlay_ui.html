@@ -483,6 +483,83 @@
     user-select: text;
   }
 
+  .path-input-row {
+    display: flex;
+    gap: 5px;
+    margin: 5px 0 8px;
+  }
+
+  .path-input {
+    flex: 1;
+    background: rgba(6, 9, 17, 0.95);
+    border: 1px solid rgba(0, 212, 255, 0.35);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 5px 8px;
+    outline: none;
+    user-select: text;
+  }
+
+  .path-input:focus {
+    border-color: var(--accent-gold);
+  }
+
+  .cand-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 6px;
+  }
+
+  .cand-item {
+    background: rgba(16, 23, 40, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 4px;
+    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .cand-item:hover {
+    border-color: var(--accent-cyan);
+    background: rgba(28, 41, 68, 0.92);
+  }
+
+  .cand-item.active-cand {
+    border-color: var(--accent-emerald);
+    background: rgba(0, 230, 118, 0.09);
+  }
+
+  .cand-info {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .cand-title {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .cand-path {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+  }
+
   /* Empty / Waiting State */
   .empty-state {
     text-align: center;
@@ -549,9 +626,10 @@
     <div class="header-controls">
       <button id="btnSim" class="btn" onclick="toggleSimulation()" title="Run/Stop Live Combat Log Simulation">⚡ Demo</button>
       <button id="btnReset" class="btn" onclick="resetEncounters()" title="Clear Encounter History">↺ Reset</button>
+      <button id="btnFolder" class="btn" onclick="switchTab('settings')" title="Select or Auto-Detect CombatLogs Folder">📂 Folder</button>
       <button id="btnCompact" class="btn" onclick="toggleCompact()" title="Toggle Mini HUD Mode">▣ Mini</button>
       <button id="btnPin" class="btn active" onclick="togglePin()" title="Keep Window Always On Top of SWTOR">📌 Pin</button>
-      <button id="btnHelp" class="btn" onclick="switchTab('settings')" title="How to Enable SWTOR Combat Logging & Log Path">❓ Help</button>
+      <button id="btnHelp" class="btn" onclick="openHelpGuide()" title="Open Full Illustrated Setup & Help Guide">❓ Help</button>
     </div>
   </div>
 
@@ -633,42 +711,53 @@
     <!-- Tab: Setup & Help -->
     <div id="tab-settings" class="tab-pane" style="display: none;">
       <div class="help-step">
-        <h4>1. How to Turn On Combat Logging in SWTOR</h4>
+        <h4>1. Select Your SWTOR CombatLogs Directory</h4>
+        <div class="kpi-label">Active CombatLogs Folder:</div>
+        <div class="path-input-row">
+          <input id="customPathInput" type="text" class="path-input" placeholder="Paste or type your CombatLogs folder path..." />
+          <button class="btn" onclick="applyCustomPath()" title="Use this folder path">✓ Use Path</button>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
+          <button class="btn active" onclick="browseLogFolder()">📂 Browse Folder...</button>
+          <button class="btn" onclick="scanLogFolders()">🔍 Auto-Scan My PC</button>
+          <button class="btn" onclick="openLogFolder()">🗂️ Open in Explorer</button>
+          <button class="btn" onclick="openHelpGuide()">📖 Full Help Guide</button>
+        </div>
+
+        <div class="kpi-label">Detected Locations on Your PC (Click any to switch):</div>
+        <div id="candidateList" class="cand-list">
+          <div style="font-size: 11px; color: var(--text-muted);">Scanning system for SWTOR folders...</div>
+        </div>
+      </div>
+
+      <div class="help-step">
+        <h4>2. How to Find Your CombatLogs Folder (By Install Type)</h4>
+        <ul>
+          <li><strong>Important:</strong> Regardless of whether you installed SWTOR via <strong>Steam</strong> (<code>C:\Program Files (x86)\Steam\steamapps\common\Star Wars - The Old Republic</code>), the <strong>EA App</strong>, or the <strong>Standalone Broadsword/BioWare Launcher</strong>, SWTOR <em>never</em> writes combat logs into the game's install directory.</li>
+          <li>Instead, SWTOR queries Windows for your personal <strong>My Documents</strong> folder and writes inside:<br/>
+            <span class="code-pill">%USERPROFILE%\Documents\Star Wars - The Old Republic\CombatLogs</span>
+          </li>
+          <li><strong>Windows OneDrive Users:</strong> If OneDrive backs up your Documents, Windows automatically redirects SWTOR logs to:<br/>
+            <span class="code-pill">%USERPROFILE%\OneDrive\Documents\Star Wars - The Old Republic\CombatLogs</span>
+          </li>
+          <li><strong>Moved Documents Drive (D:\, E:\):</strong> If you relocated your Windows <em>Documents</em> library to another drive, look inside <span class="code-pill">D:\Documents\Star Wars - The Old Republic\CombatLogs</span>.</li>
+          <li><strong>Fastest Trick to Find It:</strong> Press <span class="code-pill">Win + R</span> on your keyboard, paste:<br/>
+            <span class="code-pill">powershell -c "ii ([Environment]::GetFolderPath('MyDocuments') + '\Star Wars - The Old Republic\CombatLogs')"</span><br/>
+            and press Enter—Windows will open your exact folder immediately!</li>
+        </ul>
+      </div>
+
+      <div class="help-step">
+        <h4>3. How to Turn On Combat Logging in SWTOR</h4>
         <ol>
           <li>While in-game, press <span class="code-pill">ESC</span> (or <span class="code-pill">Ctrl + P</span>) and open <strong>Preferences</strong>.</li>
           <li>Under the <strong>Game</strong> tab at the bottom, click <strong>Combat Logging</strong> on the left menu.</li>
-          <li>Check <strong style="color: var(--accent-gold);">☑ Enable combat logging to file</strong> on the right side.</li>
-          <li>Click <strong>Apply</strong> and <strong>OK</strong>.</li>
+          <li>Check <strong style="color: var(--accent-gold);">☑ Enable combat logging to file</strong> on the right side and click <strong>Apply</strong>.</li>
+          <li>In <strong>Preferences &rarr; Graphics</strong>, set Display Mode to <strong>Fullscreen (Windowed)</strong> so this overlay stays pinned on top of your game!</li>
         </ol>
         <div class="help-img-box">
           <img src="swtor_combat_logging_help.png" alt="SWTOR Preferences - Enable Combat Logging to File" onclick="openHelpGuide()" title="Click to open full-size Setup & Help Guide" />
         </div>
-      </div>
-
-      <div class="help-step">
-        <h4>2. Where SWTOR Stores Your Combat Log Files</h4>
-        <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 4px;">
-          SWTOR automatically writes timestamped <span class="code-pill">combat_*.txt</span> files to your Documents folder:
-        </div>
-        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-primary); background: rgba(0,0,0,0.35); padding: 6px 8px; border-radius: 4px; margin-bottom: 6px; user-select: text;">
-          C:\Users\&lt;Username&gt;\Documents\Star Wars - The Old Republic\CombatLogs<br/>
-          <span style="color: var(--text-muted);">(or OneDrive\Documents\Star Wars - The Old Republic\CombatLogs)</span>
-        </div>
-        <div class="kpi-label" style="margin-top: 6px;">Currently Active Folder Being Watched:</div>
-        <div id="infoLogDir" style="font-family: var(--font-mono); font-size: 11px; word-break: break-all; margin: 2px 0 8px; color: var(--accent-cyan); user-select: text;"></div>
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-          <button class="btn" onclick="browseLogFolder()">📂 Change Folder</button>
-          <button class="btn" onclick="openLogFolder()">🗂️ Open Folder in Explorer</button>
-          <button class="btn" onclick="openHelpGuide()">📖 Open Full Help File</button>
-        </div>
-      </div>
-
-      <div class="help-step">
-        <h4>3. Best Overlay Display Settings</h4>
-        <ul>
-          <li>In SWTOR <strong>Preferences &rarr; Graphics</strong>, set <strong>Full Screen Exclusive Mode</strong> to <strong>Fullscreen (Windowed)</strong> so this overlay can stay pinned on top of your game screen.</li>
-          <li>Use <span class="code-pill">▣ Mini</span> in the top bar to collapse this window into a compact HUD bar during boss fights.</li>
-        </ul>
       </div>
     </div>
   </div>
@@ -702,6 +791,9 @@
       const pane = document.getElementById('tab-' + t);
       if (pane) pane.style.display = (t === tabName) ? 'block' : 'none';
     });
+    if (tabName === 'settings') {
+      scanLogFolders();
+    }
     if (lastSnapshot) renderSnapshot(lastSnapshot);
   }
 
@@ -763,7 +855,10 @@
     document.getElementById('footerFile').textContent = snap.log_file || 'Waiting for combat_*.txt...';
     const specTxt = snap.discipline ? ` (${snap.discipline})` : '';
     document.getElementById('footerPlayer').textContent = (snap.local_player || 'Detecting...') + specTxt;
-    document.getElementById('infoLogDir').textContent = snap.log_dir || '';
+    const pathInp = document.getElementById('customPathInput');
+    if (pathInp && document.activeElement !== pathInp) {
+      pathInp.value = snap.log_dir || '';
+    }
 
     const sel = document.getElementById('encounterSelect');
     const encList = snap.encounters || [];
@@ -971,7 +1066,81 @@
   async function browseLogFolder() {
     if (window.pywebview && window.pywebview.api) {
       const newDir = await window.pywebview.api.choose_log_dir();
-      if (newDir) fetchSnapshot();
+      if (newDir) {
+        document.getElementById('customPathInput').value = newDir;
+        selectedEncounterIdx = -1;
+        await scanLogFolders();
+        fetchSnapshot();
+      }
+    }
+  }
+
+  async function applyCustomPath(overridePath) {
+    const inp = document.getElementById('customPathInput');
+    const pathVal = (overridePath !== undefined) ? overridePath : (inp ? inp.value.trim() : '');
+    if (!pathVal) return;
+    if (window.pywebview && window.pywebview.api) {
+      const res = await window.pywebview.api.set_log_dir(pathVal);
+      if (res && res.log_dir && inp) inp.value = res.log_dir;
+      if (res && res.candidates) renderCandidates(res.candidates, res.log_dir);
+    } else {
+      const resp = await fetch('/api/set_dir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: pathVal }),
+      });
+      const res = await resp.json();
+      if (res && res.log_dir && inp) inp.value = res.log_dir;
+      if (res && res.candidates) renderCandidates(res.candidates, res.log_dir);
+    }
+    selectedEncounterIdx = -1;
+    fetchSnapshot();
+  }
+
+  function renderCandidates(cands, activeDir) {
+    const box = document.getElementById('candidateList');
+    if (!box) return;
+    if (!cands || cands.length === 0) {
+      box.innerHTML = '<div style="font-size: 11px; color: var(--text-muted);">No candidate folders detected yet. Use Browse Folder above.</div>';
+      return;
+    }
+    const normActive = (activeDir || (lastSnapshot ? lastSnapshot.log_dir : '') || '').toLowerCase();
+    let html = '';
+    cands.forEach((c, idx) => {
+      const isCurrent = c.path.toLowerCase() === normActive;
+      const statusBadge = c.log_count > 0
+        ? `<span class="meter-badge" style="background: rgba(0, 230, 118, 0.18); color: var(--accent-emerald);">${c.log_count} logs (${c.latest_time})</span>`
+        : (c.exists
+            ? `<span class="meter-badge">Empty folder</span>`
+            : `<span class="meter-badge" style="opacity: 0.6;">Not created yet</span>`);
+      const escapedPath = c.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      html += `
+        <div class="cand-item ${isCurrent ? 'active-cand' : ''}" onclick="applyCustomPath('${escapedPath}')">
+          <div class="cand-info">
+            <div class="cand-title">
+              <span>${isCurrent ? '✓ ' : ''}${c.label}</span>
+              ${statusBadge}
+            </div>
+            <div class="cand-path" title="${c.path}">${c.path}</div>
+          </div>
+          <button class="btn" style="flex-shrink: 0;">${isCurrent ? 'Active' : 'Select'}</button>
+        </div>`;
+    });
+    box.innerHTML = html;
+  }
+
+  async function scanLogFolders() {
+    try {
+      let cands = [];
+      if (window.pywebview && window.pywebview.api) {
+        cands = await window.pywebview.api.discover_log_dirs();
+      } else {
+        const resp = await fetch('/api/discover_dirs');
+        if (resp.ok) cands = await resp.json();
+      }
+      renderCandidates(cands, lastSnapshot ? lastSnapshot.log_dir : '');
+    } catch (e) {
+      // Ignore scan error
     }
   }
 

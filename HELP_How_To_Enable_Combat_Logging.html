@@ -206,20 +206,40 @@
 
     <!-- Step 2 -->
     <div class="card">
-      <h2><span class="step-badge">2</span> Where SWTOR Saves Your Combat Log Files</h2>
-      <p>Once enabled, SWTOR automatically writes timestamped text files (<span class="kbd">combat_YYYY-MM-DD_HH_MM_SS_######.txt</span>) into your Windows Documents folder:</p>
+      <h2><span class="step-badge">2</span> Where SWTOR Saves Your Combat Log Files (And How to Find Yours)</h2>
+      <p><strong>Important Note on Install Types:</strong> Whether you installed SWTOR via <strong>Steam</strong> (<code>C:\Program Files (x86)\Steam\steamapps\common\Star Wars - The Old Republic</code>), the <strong>EA App</strong>, or the <strong>Standalone Broadsword/BioWare Launcher</strong>, SWTOR <em>never</em> writes combat logs into the game's installation folder. Instead, SWTOR asks Windows for your personal <strong>My Documents</strong> folder and writes timestamped text files (<span class="kbd">combat_YYYY-MM-DD_HH_MM_SS_######.txt</span>) there.</p>
+
+      <p style="margin-top: 12px;">Depending on how your Windows PC is configured, your logs will be in one of these locations:</p>
+
+      <p style="font-size: 14px; color: var(--text-muted); margin-top: 10px;">
+        <strong>A. Standard Local Windows Account:</strong>
+      </p>
       <div class="path-box">
         C:\Users\&lt;YourUsername&gt;\Documents\Star Wars - The Old Republic\CombatLogs
       </div>
-      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">
-        <strong>Using Windows OneDrive?</strong> If your Documents folder is backed up by OneDrive, Windows stores the files at:
+
+      <p style="font-size: 14px; color: var(--text-muted);">
+        <strong>B. Windows OneDrive Backup (Very Common on Windows 10/11):</strong>
       </p>
       <div class="path-box" style="border-left-color: var(--accent-gold); color: var(--accent-gold);">
         C:\Users\&lt;YourUsername&gt;\OneDrive\Documents\Star Wars - The Old Republic\CombatLogs
       </div>
+
       <p style="font-size: 14px; color: var(--text-muted);">
-        <strong>Automatic Detection:</strong> <code>SWTOR_DPS_Parser.exe</code> automatically checks both locations and watches whichever folder contains your newest <code>combat_*.txt</code> files. You can also click <strong>❓ Help &rarr; 📂 Change Folder</strong> inside the overlay at any time to pick a custom directory.
+        <strong>C. Relocated Documents Library on a Secondary Drive (D:\, E:\):</strong>
       </p>
+      <div class="path-box" style="border-left-color: var(--accent-emerald); color: var(--accent-emerald);">
+        D:\Documents\Star Wars - The Old Republic\CombatLogs &nbsp;&nbsp;(or D:\Users\&lt;YourUsername&gt;\Documents\...)
+      </div>
+
+      <div class="feature-box" style="margin-top: 14px; border-color: rgba(0, 212, 255, 0.35);">
+        <h3>💡 Fastest Way to Find Your Exact Folder on Any PC</h3>
+        <p style="margin-bottom: 6px;">1. Inside the overlay, click <strong>📂 Folder</strong> (or open the <strong>❓ Setup &amp; Help</strong> tab) and click <strong>🔍 Auto-Scan My PC</strong>. The app checks your Windows Registry <code>Personal</code> shell folder, OneDrive paths, and secondary drives, showing how many <code>combat_*.txt</code> files exist in each location so you can select it in one click.</p>
+        <p>2. Or press <span class="kbd">Win + R</span> on your keyboard, paste the command below, and press Enter to open your active Windows Documents folder directly:</p>
+        <div class="path-box" style="margin: 8px 0 4px; font-size: 12.5px;">
+          powershell -c "ii ([Environment]::GetFolderPath('MyDocuments') + '\Star Wars - The Old Republic\CombatLogs')"
+        </div>
+      </div>
     </div>
 
     <!-- Step 3 -->

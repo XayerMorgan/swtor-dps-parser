@@ -3,7 +3,9 @@
 A lightweight, local-first live DPS parser and Always-On-Top overlay for **Star Wars: The Old Republic (SWTOR)** (supporting both 7.0+ *Legacy of the Sith* and classic combat logs).
 
 ## Features
-- **Zero-Configuration Log Detection:** Automatically locates and tails your latest `combat_*.txt` file in `Documents\Star Wars - The Old Republic\CombatLogs` (including Windows OneDrive `Documents` folders).
+- **Smart Log Directory Auto-Discovery & Custom Folder Selector:**
+  - Automatically scans Windows Registry (`User Shell Folders\Personal`), `OneDrive` / `OneDriveConsumer` / `OneDriveCommercial` folders, standard `Documents`, and secondary drives (`D:`, `E:`, `F:`, `G:`) to locate your `CombatLogs` folder and pick the one with the newest logs.
+  - Allows you to browse for a custom folder (`📂 Folder` button), paste a custom path, or pick from a ranked list of auto-detected candidate locations in **❓ Setup & Help** (saved automatically across restarts).
 - **Real-Time Metrics (250ms updates):**
   - Personal **DPS**, **Total Damage**, **Crit %**, **Accuracy %**, **APM**, **HPS**, and **DTPS**
   - Live **Real-Time DPS Curve** sparkline and **Boss HP Bar**
