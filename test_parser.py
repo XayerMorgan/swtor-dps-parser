@@ -170,6 +170,23 @@ class TestSWTORParser(unittest.TestCase):
         self.assertIn("[Holocron] Magisterium vs Gorga Brak", fight_chat["text"])
         self.assertIn("600 DPS (3,000 dmg)", fight_chat["text"])
 
+        # Add a second group member to test Whole-Team Group Leaderboard formatting
+        parser.parse_line(
+            "[12:10:04.000] [@Slighted#689143939391000|10.0|250000/250000] [Gorga Brak {4401002}:99002|0.0|0/5000] "
+            "[Focused Burst {807780464295001}] [ApplyEffect {836045448945477}: Damage {836045448945501}] (7000* ~7000 kinetic {836045448940873})"
+        )
+        group_chat = parser.format_chat_summary(-2, mode="group")
+        self.assertTrue(group_chat["ok"])
+        self.assertLessEqual(len(group_chat["text"]), 250)
+        self.assertIn("[Holocron Team]", group_chat["text"])
+        self.assertIn("1. Slighted", group_chat["text"])
+        self.assertIn("2. Magisterium", group_chat["text"])
+
+        # Verify Windows-1252 accented character name decoding (no replacement diamonds)
+        cp1252_bytes = "Vísíblé Ghóst".encode("cp1252")
+        decoded = SWTORLogParser._decode_log_line(cp1252_bytes)
+        self.assertEqual(decoded, "Vísíblé Ghóst")
+
 
 if __name__ == "__main__":
     unittest.main()

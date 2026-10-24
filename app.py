@@ -615,10 +615,16 @@ class OverlayBridgeAPI:
             except Exception:
                 return False
 
-    def copy_chat_summary(self, encounter_index: int = -2, custom_text: str = "") -> dict:
+    def copy_chat_summary(
+        self,
+        encounter_index: int = -2,
+        custom_text: str = "",
+        mode: str = "personal",
+        combatant_name: str = "",
+    ) -> dict:
         """
-        Formats the selected Session (-2) or Fight (-1 / >=0) summary (or custom reference text)
-        for SWTOR in-game chat and copies it to the Windows clipboard.
+        Formats the selected Session (-2) or Fight (-1 / >=0) summary (personal, group/team,
+        healing/tank, or custom reference text) for SWTOR in-game chat and copies it to the Windows clipboard.
         """
         with self._lock:
             if not self._sim.running:
@@ -627,7 +633,7 @@ class OverlayBridgeAPI:
                 res = {"ok": True, "text": custom_text.strip()[:250]}
             else:
                 idx = encounter_index if (encounter_index >= 0 or encounter_index == -2) else None
-                res = self._parser.format_chat_summary(idx)
+                res = self._parser.format_chat_summary(idx, mode=mode, combatant_name=combatant_name)
         if res.get("ok") and res.get("text"):
             copied = self._set_win32_clipboard(res["text"])
             res["clipboard_ok"] = copied
@@ -792,6 +798,8 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
     def api_copy_chat(payload: dict):
         enc_idx = int(payload.get("encounter_index", -2))
         custom_text = str(payload.get("custom_text", "")).strip()
+        mode = str(payload.get("mode", "personal")).strip()
+        combatant_name = str(payload.get("combatant_name", "")).strip()
         with lock:
             if not sim.running:
                 parser.poll()
@@ -799,7 +807,7 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
                 res = {"ok": True, "text": custom_text[:250]}
             else:
                 idx = enc_idx if (enc_idx >= 0 or enc_idx == -2) else None
-                res = parser.format_chat_summary(idx)
+                res = parser.format_chat_summary(idx, mode=mode, combatant_name=combatant_name)
         return JSONResponse(res)
 
     print(f"SWTOR Holocron DPS Web UI running at http://127.0.0.1:{port}")

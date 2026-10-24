@@ -494,6 +494,18 @@ class SWTORLogParser:
         self.last_parsed_time = None
         self.base_date = self._extract_date_from_filename(file_path.name)
 
+    @staticmethod
+    def _decode_log_line(raw_bytes: bytes) -> str:
+        """
+        SWTOR writes non-ASCII character names (e.g. accented Latin characters)
+        in Windows-1252 (cp1252). Try UTF-8 first, then fall back to cp1252 so
+        accented names never turn into replacement diamonds.
+        """
+        try:
+            return raw_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            return raw_bytes.decode("cp1252", errors="replace")
+
     def load_entire_file(self, file_path: Path) -> int:
         """Reads and parses an entire combat_*.txt log file from start to finish."""
         self.set_log_file(file_path, read_from_start=True)
@@ -501,9 +513,9 @@ class SWTORLogParser:
             return 0
         count = 0
         try:
-            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                for line in f:
-                    self.parse_line(line)
+            with open(file_path, "rb") as f:
+                for raw_line in f:
+                    self.parse_line(self._decode_log_line(raw_line))
                     count += 1
             self._prune_empty_encounters()
         except OSError:
@@ -586,16 +598,16 @@ class SWTORLogParser:
                 return 0
 
             lines_processed = 0
-            with open(self.current_file, "r", encoding="utf-8", errors="replace") as f:
+            with open(self.current_file, "rb") as f:
                 f.seek(self.file_pos)
                 while True:
-                    line = f.readline()
-                    if not line:
+                    raw_line = f.readline()
+                    if not raw_line:
                         break
-                    if not line.endswith("\n") and not line.endswith("\r"):
+                    if not raw_line.endswith(b"\n") and not raw_line.endswith(b"\r"):
                         break
                     self.file_pos = f.tell()
-                    self.parse_line(line)
+                    self.parse_line(self._decode_log_line(raw_line))
                     lines_processed += 1
 
             # Drop empty zero-damage encounters if another encounter followed
@@ -1123,7 +1135,7 @@ class SWTORLogParser:
             max_hit_val = 0
             max_hit_abil = ""
             for a in abilities_sorted:
-                if a.max_hit > max_hit_val:
+                if (a.total_damage > 0 or c.damage_dealt == 0) and a.max_hit > max_hit_val:
                     max_hit_val = a.max_hit
                     max_hit_abil = a.name
                 if a.total_damage == 0 and a.total_heal == 0 and a.misses == 0:
@@ -1238,29 +1250,131 @@ class SWTORLogParser:
             "references_count": len(self.references),
         }
 
-    def format_chat_summary(self, encounter_index: Optional[int] = -2) -> dict:
+    @staticmethod
+    def _fmt_compact_dmg(val: float) -> str:
+        n = float(val or 0)
+        if n >= 1_000_000:
+            return f"{n / 1_000_000:.2f}M"
+        if n >= 100_000:
+            return f"{n / 1_000:.0f}K"
+        return f"{int(round(n)):,}"
+
+    @staticmethod
+    def _clean_chat_str(s: str) -> str:
+        return (s or "").replace("\ufffd", "").strip()
+
+    def format_chat_summary(
+        self,
+        encounter_index: Optional[int] = -2,
+        mode: str = "personal",
+        combatant_name: str = "",
+    ) -> dict:
         """
         Formats a single-line, SWTOR-chat-safe (<250 chars, pure ASCII/Latin text)
         summary of the selected Session (-2) or Fight (-1 / 0..N) ready to paste
         into SWTOR in-game chat (/p, /ops, /g, /s) via Ctrl+V.
+
+        Supported modes:
+        - "personal": Local player's (or specified combatant_name's) DPS, Crit, Acc, APM, Max Hit & Top Skills
+        - "group" / "team": Whole-team Group DPS Leaderboard (Team Total DPS + Ranked 1..N players with DPS, % share & Crit)
+        - "healing" / "heal": Whole-team Group Heal & Tank Leaderboard (HPS & DTPS across the group)
         """
         snap = self.get_snapshot(encounter_index)
         if not snap.get("has_encounter") or not snap.get("local_stats"):
             return {"ok": False, "text": "", "error": "No combat data to copy yet."}
 
-        p = snap["local_stats"]
-        player = snap.get("local_player") or p.get("name") or "Player"
-        spec = snap.get("discipline") or p.get("discipline") or ""
-        spec_str = f" ({spec})" if spec else ""
         is_sess = bool(snap.get("is_session_view"))
         sess_sum = snap.get("session_summary") or {}
+        combatants = snap.get("combatants") or []
+        dur_str = snap.get("duration", "00:00")
+        area_or_title = self._clean_chat_str(
+            (self.session_name.strip() or snap.get("area") or "Session")
+            if is_sess
+            else (snap.get("title") or "Fight")
+        )
+
+        norm_mode = (mode or "personal").strip().lower()
+
+        # --- GROUP / TEAM DPS LEADERBOARD MODE ---
+        if norm_mode in ("group", "team") and not combatant_name:
+            active_c = [c for c in combatants if (c.get("damage", 0) > 0 or c.get("dps", 0) > 0)]
+            if not active_c:
+                active_c = combatants
+            total_team_dps = sum(c.get("dps", 0.0) for c in active_c)
+            total_team_dmg = sum(c.get("damage", 0) for c in active_c)
+
+            if is_sess:
+                f_cnt = sess_sum.get("encounter_count", 1)
+                hdr = f"[Holocron Team] {area_or_title} ({f_cnt} fights, {dur_str}) | Team: {int(round(total_team_dps)):,}/s ({self._fmt_compact_dmg(total_team_dmg)})"
+            else:
+                hdr = f"[Holocron Team] vs {area_or_title} ({dur_str}) | Team: {int(round(total_team_dps)):,}/s ({self._fmt_compact_dmg(total_team_dmg)})"
+
+            # Build ranked entries with progressive compactness so 4-8+ players fit inside <=250 chars
+            for detail_level in ("full", "medium", "compact", "minimal"):
+                parts = []
+                limit_count = 6 if detail_level in ("full", "medium") else 8
+                for idx, c in enumerate(active_c[:limit_count]):
+                    c_name = self._clean_chat_str(c.get("name", "Player"))
+                    # Shorten companion owner suffix if space is tight
+                    if detail_level in ("compact", "minimal") and "(" in c_name:
+                        c_name = c_name.split("(", 1)[0].strip()
+                    c_dps = int(round(c.get("dps", 0)))
+                    c_crit = c.get("crit_pct", 0.0)
+                    c_share = (c.get("damage", 0) / total_team_dmg * 100.0) if total_team_dmg > 0 else 0.0
+                    c_spec = self._clean_chat_str(c.get("discipline", ""))
+
+                    if detail_level == "full" and len(active_c) <= 4 and c_spec:
+                        parts.append(f"{idx + 1}. {c_name} ({c_spec}) {c_dps:,}/s ({c_share:.0f}%, {c_crit:.0f}%c)")
+                    elif detail_level in ("full", "medium"):
+                        parts.append(f"{idx + 1}. {c_name} {c_dps:,}/s ({c_share:.0f}%, {c_crit:.0f}%c)")
+                    elif detail_level == "compact":
+                        parts.append(f"{idx + 1}.{c_name} {c_dps:,}/s ({c_share:.0f}%)")
+                    else:
+                        parts.append(f"{idx + 1}.{c_name} {c_dps:,}/s")
+
+                candidate = f"{hdr} || " + " | ".join(parts)
+                if len(candidate) <= 250 or detail_level == "minimal":
+                    return {"ok": True, "text": candidate[:250], "is_session": is_sess, "mode": "group"}
+
+        # --- GROUP HEAL & TANK MODE ---
+        if norm_mode in ("healing", "heal", "tank") and not combatant_name:
+            heal_c = sorted(combatants, key=lambda x: (x.get("hps", 0.0), x.get("dtps", 0.0)), reverse=True)
+            total_hps = sum(c.get("hps", 0.0) for c in heal_c)
+            if is_sess:
+                f_cnt = sess_sum.get("encounter_count", 1)
+                hdr = f"[Holocron Heal/Tank] {area_or_title} ({f_cnt} fights, {dur_str}) | Team HPS: {int(round(total_hps)):,}/s"
+            else:
+                hdr = f"[Holocron Heal/Tank] vs {area_or_title} ({dur_str}) | Team HPS: {int(round(total_hps)):,}/s"
+            parts = []
+            for idx, c in enumerate(heal_c[:6]):
+                c_name = self._clean_chat_str(c.get("name", "Player")).split("(", 1)[0].strip()
+                parts.append(f"{idx + 1}. {c_name}: {int(round(c.get('hps', 0))):,} HPS / {int(round(c.get('dtps', 0))):,} DTPS")
+            line = (f"{hdr} || " + " | ".join(parts))[:250]
+            return {"ok": True, "text": line, "is_session": is_sess, "mode": "healing"}
+
+        # --- PERSONAL OR SPECIFIC COMBATANT SUMMARY MODE ---
+        p = snap["local_stats"]
+        rank_prefix = ""
+        if combatant_name:
+            for idx, c in enumerate(combatants):
+                if c.get("name") == combatant_name:
+                    p = c
+                    if len(combatants) > 1:
+                        total_team_dmg = max(sum(x.get("damage", 0) for x in combatants), 1)
+                        share_pct = (c.get("damage", 0) / total_team_dmg) * 100.0
+                        rank_prefix = f"#{idx + 1}/{len(combatants)} ({share_pct:.0f}% team dmg) "
+                    break
+
+        player = self._clean_chat_str(p.get("name") or snap.get("local_player") or "Player")
+        spec = self._clean_chat_str(p.get("discipline") or (snap.get("discipline") if not combatant_name else "") or "")
+        spec_str = f" ({spec})" if spec else ""
 
         if is_sess:
             f_cnt = sess_sum.get("encounter_count", 1)
-            span_s = sess_sum.get("session_span", snap.get("duration", "00:00"))
-            header = f"[Holocron Session] {player}{spec_str} ({f_cnt} fights, {snap['duration']} combat / {span_s} span)"
+            span_s = sess_sum.get("session_span", dur_str)
+            header = f"[Holocron Session] {rank_prefix}{player}{spec_str} ({f_cnt} fights, {dur_str} combat / {span_s} span)"
         else:
-            header = f"[Holocron] {player}{spec_str} vs {snap.get('title', 'Target')} ({snap.get('duration', '00:00')})"
+            header = f"[Holocron] {rank_prefix}{player}{spec_str} vs {area_or_title} ({dur_str})"
 
         core = (
             f"{int(round(p.get('dps', 0))):,} DPS ({int(round(p.get('damage', 0))):,} dmg)"
@@ -1269,7 +1383,7 @@ class SWTORLogParser:
 
         extras = []
         if p.get("max_hit", 0) > 0:
-            mh_abil = p.get("max_hit_ability") or "Hit"
+            mh_abil = self._clean_chat_str(p.get("max_hit_ability") or "Hit")
             extras.append(f"Max {int(round(p['max_hit'])):,} ({mh_abil})")
         if p.get("hps", 0) >= 10:
             extras.append(f"{int(round(p['hps'])):,} HPS")
@@ -1277,13 +1391,13 @@ class SWTORLogParser:
             extras.append(f"{int(round(p['dtps'])):,} DTPS")
 
         base = snap.get("active_baseline")
-        if base and base.get("dps", 0) > 0:
+        if not combatant_name and base and base.get("dps", 0) > 0:
             diff = p.get("dps", 0) - base["dps"]
             sign = "+" if diff >= 0 else ""
             extras.append(f"vs Ref {sign}{int(round(diff)):,}/s")
 
         abils = [
-            f"{a['name']} {a.get('pct', 0):.0f}%"
+            f"{self._clean_chat_str(a['name'])} {a.get('pct', 0):.0f}%"
             for a in (p.get("abilities") or [])[:3]
             if a.get("total_damage", 0) > 0
         ]
@@ -1298,7 +1412,7 @@ class SWTORLogParser:
         if len(full_line) > 250:
             full_line = f"{header}: {core}{ext_str}"[:250]
 
-        return {"ok": True, "text": full_line, "is_session": is_sess}
+        return {"ok": True, "text": full_line, "is_session": is_sess, "mode": "personal"}
 
     # -------------------------------------------------------------------------
     # Historical Reference Points & Cross-Session Analysis
@@ -1355,7 +1469,7 @@ class SWTORLogParser:
         max_hit = 0
         max_hit_ability = ""
         for a in abilities:
-            if a.get("max_hit", 0) > max_hit:
+            if (a.get("total_damage", 0) > 0 or p.get("damage", 0) == 0) and a.get("max_hit", 0) > max_hit:
                 max_hit = a["max_hit"]
                 max_hit_ability = a.get("name", "")
 
@@ -1423,6 +1537,19 @@ class SWTORLogParser:
                     "total_damage": a["total_damage"],
                 }
                 for a in abilities[:40]
+            ],
+            "combatants": [
+                {
+                    "name": c.get("name", "Player"),
+                    "discipline": c.get("discipline", ""),
+                    "dps": c.get("dps", 0.0),
+                    "damage": c.get("damage", 0),
+                    "crit_pct": c.get("crit_pct", 0.0),
+                    "apm": c.get("apm", 0.0),
+                    "hps": c.get("hps", 0.0),
+                    "dtps": c.get("dtps", 0.0),
+                }
+                for c in (snap.get("combatants") or [])[:16]
             ],
         }
 

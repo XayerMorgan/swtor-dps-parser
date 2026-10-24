@@ -521,6 +521,31 @@
     background: rgba(6, 10, 20, 0.82);
     border: 1px solid rgba(0, 212, 255, 0.28);
     color: #e6f1ff;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .team-summary-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+    background: linear-gradient(90deg, rgba(0, 212, 255, 0.12), rgba(255, 184, 0, 0.08));
+    border: 1px solid rgba(0, 212, 255, 0.32);
+    border-radius: 5px;
+    padding: 6px 9px;
+    margin-bottom: 7px;
+    font-size: 11px;
+  }
+
+  .team-summary-stats {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    flex-wrap: wrap;
   }
 
   .meter-right {
@@ -1012,8 +1037,9 @@
       <option value="-2">📊 Full Session Total (Time to Date)</option>
       <option value="-1">⚔️ Current / Latest Fight Only</option>
     </select>
-    <button id="btnCopyChat" class="btn btn-xs btn-chat" onclick="copyChatSummary()" title="Copy Session or Fight DPS, Crit, APM, Max Hit & Top Skills to Windows Clipboard to paste (Ctrl+V) in SWTOR Chat">📋 Copy Chat</button>
-    <button id="btnQuickSaveRef" class="btn btn-xs btn-save" onclick="quickSaveReference()" title="Save Full Session or Current Fight to Persistent History">💾 Save Session</button>
+    <button id="btnCopyChat" class="btn btn-xs btn-chat" onclick="copyChatSummary()" title="Copy Session or Fight DPS Summary to Windows Clipboard to paste (Ctrl+V) in SWTOR Chat">📋 Chat</button>
+    <button id="btnCopyTeamChat" class="btn btn-xs btn-chat" style="display: none;" onclick="copyChatSummary('group')" title="Copy Whole-Team Group DPS Leaderboard to Windows Clipboard for SWTOR Party/Ops Chat (Ctrl+V)">👥 Team</button>
+    <button id="btnQuickSaveRef" class="btn btn-xs btn-save" onclick="quickSaveReference()" title="Save Full Session or Current Fight to Persistent History">💾 Save</button>
     <div id="timerBadge" class="timer-badge" title="Active Combat Time vs Total Session Span">Combat 00:00</div>
   </div>
 
@@ -1075,6 +1101,13 @@
 
     <!-- Tab: Group Raid DPS -->
     <div id="tab-group" class="tab-pane" style="display: none;">
+      <div id="groupSummaryBar" class="team-summary-bar" style="display: none;">
+        <div id="groupSummaryText" class="team-summary-stats">👥 Team Total: 0 DPS</div>
+        <div style="display: flex; gap: 4px; flex-shrink: 0;">
+          <button id="btnGroupTabCopyTeam" class="btn btn-xs btn-chat" onclick="copyChatSummary('group')" title="Copy Whole-Team Group DPS Leaderboard (#1..#N) to Windows Clipboard for SWTOR Party/Ops Chat (Ctrl+V)">👥 Copy Team DPS for Chat</button>
+          <button class="btn btn-xs" onclick="copyChatSummary('personal')" title="Copy Only Your Personal DPS Breakdown">📋 My DPS</button>
+        </div>
+      </div>
       <div class="meter-col-header">
         <span># · Combatant · Discipline</span>
         <span>Crit % · APM · Total Dmg · DPS</span>
@@ -1084,6 +1117,10 @@
 
     <!-- Tab: Healing & Tank -->
     <div id="tab-healing" class="tab-pane" style="display: none;">
+      <div id="healSummaryBar" class="team-summary-bar" style="display: none;">
+        <div id="healSummaryText" class="team-summary-stats">💚 Team Healing &amp; Tanking</div>
+        <button id="btnHealTabCopyTeam" class="btn btn-xs btn-chat" onclick="copyChatSummary('healing')" title="Copy Whole-Team Healing (HPS) & Tank Damage Taken (DTPS) to Windows Clipboard for SWTOR Chat (Ctrl+V)">📋 Copy Heal &amp; Tank for Chat</button>
+      </div>
       <div class="meter-col-header">
         <span># · Combatant</span>
         <span>Damage Taken (DTPS) · Healing (HPS)</span>
@@ -1278,6 +1315,7 @@
     } else if (tabName === 'history') {
       loadReferences();
     }
+    syncModeButtons();
     if (lastSnapshot) renderSnapshot(lastSnapshot);
   }
 
@@ -1302,16 +1340,32 @@
     const btnFight = document.getElementById('btnModeFight');
     const btnQuick = document.getElementById('btnQuickSaveRef');
     const btnChat = document.getElementById('btnCopyChat');
+    const btnTeam = document.getElementById('btnCopyTeamChat');
+    const hasTeam = Boolean(lastSnapshot && Array.isArray(lastSnapshot.combatants) && lastSnapshot.combatants.length > 1);
     if (btnSess) btnSess.classList.toggle('active', isSess);
     if (btnFight) btnFight.classList.toggle('active', !isSess);
     if (btnQuick && !btnQuick.dataset.justSaved) {
       btnQuick.textContent = isSess ? '💾 Save' : '⭐ Save';
     }
     if (btnChat && !btnChat.dataset.justCopied) {
-      btnChat.textContent = '📋 Chat';
-      btnChat.title = isSess
-        ? 'Copy Full Session DPS, Crit, APM, Max Hit & Top Skills to Windows Clipboard for SWTOR Chat (Ctrl+V)'
-        : 'Copy Current Fight DPS, Crit, APM, Max Hit & Top Skills to Windows Clipboard for SWTOR Chat (Ctrl+V)';
+      if (currentTab === 'group') {
+        btnChat.textContent = '👥 Team Chat';
+        btnChat.title = 'Copy Whole-Team Group DPS Leaderboard (#1..#N) to Windows Clipboard for SWTOR Party/Ops Chat (Ctrl+V)';
+      } else if (currentTab === 'healing') {
+        btnChat.textContent = '💚 Heal Chat';
+        btnChat.title = 'Copy Whole-Team Healing & Tanking Summary to Windows Clipboard for SWTOR Chat (Ctrl+V)';
+      } else {
+        btnChat.textContent = '📋 Chat';
+        btnChat.title = isSess
+          ? 'Copy Your Full Session DPS, Crit, APM, Max Hit & Top Skills to Windows Clipboard for SWTOR Chat (Ctrl+V)'
+          : 'Copy Your Current Fight DPS, Crit, APM, Max Hit & Top Skills to Windows Clipboard for SWTOR Chat (Ctrl+V)';
+      }
+    }
+    if (btnTeam) {
+      btnTeam.style.display = (hasTeam && currentTab !== 'group') ? 'inline-flex' : 'none';
+      if (!btnTeam.dataset.justCopied) {
+        btnTeam.textContent = '👥 Team';
+      }
     }
   }
 
@@ -1558,6 +1612,10 @@
       document.getElementById('timerBadge').textContent = 'Combat 00:00';
       document.getElementById('bossHpWrap').classList.remove('visible');
       if (abilHeader) abilHeader.style.display = 'none';
+      const gSumBar = document.getElementById('groupSummaryBar');
+      const hSumBar = document.getElementById('healSummaryBar');
+      if (gSumBar) gSumBar.style.display = 'none';
+      if (hSumBar) hSumBar.style.display = 'none';
 
       const undoCallout = snap.can_undo_reset
         ? `<button class="btn btn-undo" onclick="undoResetEncounters()">↩ Undo Last Reset</button>`
@@ -1678,23 +1736,45 @@
     document.getElementById('abilityList').innerHTML = abilHtml || '<div class="empty-state"><p>No damaging abilities recorded yet.</p></div>';
 
     const combatants = snap.combatants || [];
+    const totalTeamDmg = combatants.reduce((acc, c) => acc + (c.damage || 0), 0);
+    const totalTeamDps = combatants.reduce((acc, c) => acc + (c.dps || 0), 0);
+    const totalTeamHps = combatants.reduce((acc, c) => acc + (c.hps || 0), 0);
+    const totalTeamDtps = combatants.reduce((acc, c) => acc + (c.dtps || 0), 0);
+
+    const gSumBar = document.getElementById('groupSummaryBar');
+    const gSumTxt = document.getElementById('groupSummaryText');
+    if (gSumBar && gSumTxt) {
+      gSumBar.style.display = combatants.length > 0 ? 'flex' : 'none';
+      gSumTxt.innerHTML = `<span style="color:var(--accent-gold); font-weight:700;">👥 Team (${combatants.length}): ${fmtNum(totalTeamDps)}/s</span> <span style="color:var(--text-muted);">· ${fmtNum(totalTeamDmg)} dmg</span>`;
+    }
+
+    const hSumBar = document.getElementById('healSummaryBar');
+    const hSumTxt = document.getElementById('healSummaryText');
+    if (hSumBar && hSumTxt) {
+      hSumBar.style.display = combatants.length > 0 ? 'flex' : 'none';
+      hSumTxt.innerHTML = `<span style="color:var(--accent-emerald); font-weight:700;">💚 Team HPS: ${fmtNum(totalTeamHps)}/s</span> <span style="color:#ffb3bc;">· Taken: ${fmtNum(totalTeamDtps)}/s</span>`;
+    }
+
     const maxPlayerDmg = combatants.length > 0 ? Math.max(...combatants.map(c => c.damage), 1) : 1;
     let groupHtml = '';
     combatants.forEach((c, idx) => {
       const barWidth = Math.max(2, (c.damage / maxPlayerDmg) * 100);
+      const sharePct = totalTeamDmg > 0 ? ((c.damage || 0) / totalTeamDmg) * 100.0 : 0.0;
       const fillClass = c.is_local ? 'meter-fill local-player' : 'meter-fill';
       groupHtml += `
-        <div class="meter-row">
+        <div class="meter-row" title="#${idx + 1} ${escHtml(c.name)} ${c.discipline ? '(' + escHtml(c.discipline) + ')' : ''} — ${fmtNum(c.dps)} DPS (${sharePct.toFixed(1)}% of team dmg) | ${fmtNum(c.damage)} dmg | ${c.crit_pct.toFixed(1)}% crit | ${c.apm.toFixed(1)} APM">
           <div class="${fillClass}" style="width: ${barWidth.toFixed(1)}%;"></div>
           <div class="meter-left">
             <span class="rank-num">${idx + 1}.</span>
             <span class="meter-name">${escHtml(c.name)}</span>
             ${c.discipline ? `<span class="meter-badge">${escHtml(c.discipline)}</span>` : ''}
+            ${combatants.length > 1 ? `<span class="meter-badge" style="color:var(--accent-gold); border-color:rgba(255,184,0,0.35);" title="Share of Total Team Damage">${sharePct.toFixed(0)}%</span>` : ''}
           </div>
           <div class="meter-right">
             <span class="stat-muted">${c.crit_pct.toFixed(1)}% crit · ${c.apm.toFixed(0)} APM</span>
             <span class="stat-muted">${fmtNum(c.damage)}</span>
             <span class="stat-highlight">${fmtNum(c.dps)}/s</span>
+            <button class="btn btn-chat" style="padding: 1px 4px; font-size: 9.5px;" onclick="copyCombatantToChat(${idx})" title="Copy ${escHtml(c.name)}'s DPS breakdown to Windows Clipboard for SWTOR Chat">📋</button>
           </div>
         </div>`;
     });
@@ -2104,7 +2184,8 @@
             </div>
             <div class="ref-actions">
               <button class="btn btn-xs ${isBase ? 'active' : ''}" onclick="setBaselineRef('${r.id}')" title="Pin/Unpin as Active Baseline for Live HUD Comparison">${isBase ? '🎯 Active Ref' : 'Set Baseline'}</button>
-              <button id="btnRefChat_${r.id}" class="btn btn-xs btn-chat" onclick="copyRefToChat('${r.id}')" title="Copy this saved Session/Fight summary to Windows Clipboard for SWTOR Chat (Ctrl+V)">📋 Chat</button>
+              <button id="btnRefChat_${r.id}" class="btn btn-xs btn-chat" onclick="copyRefToChat('${r.id}', 'personal')" title="Copy Personal DPS summary to Windows Clipboard for SWTOR Chat (Ctrl+V)">📋 Chat</button>
+              ${(r.combatants && r.combatants.length > 1) ? `<button id="btnRefTeam_${r.id}" class="btn btn-xs btn-chat" onclick="copyRefToChat('${r.id}', 'group')" title="Copy Whole-Team Group Leaderboard (${r.combatants.length} Combatants) to Windows Clipboard for SWTOR Chat">👥 Team</button>` : ''}
               <button class="btn btn-xs" onclick="toggleExpandRef('${r.id}')" title="View All Recorded Skills & Compare">${isExpanded ? '▲ Hide' : `▼ Skills (${abilCount})`}</button>
               <button class="btn btn-xs" onclick="startRenameRef('${r.id}')" title="Rename Session / Edit Tag">✏️</button>
               <button class="btn btn-xs" onclick="deleteRef('${r.id}')" title="Delete Reference Point">🗑️</button>
@@ -2267,18 +2348,24 @@
     }, 4500);
   }
 
-  async function copyChatSummary() {
+  async function copyChatSummary(modeOverride, combatantName) {
+    const effectiveMode = modeOverride || (currentTab === 'group' ? 'group' : (currentTab === 'healing' ? 'healing' : 'personal'));
+    const cName = combatantName || '';
     const btn = document.getElementById('btnCopyChat');
+    const teamBtn = document.getElementById('btnCopyTeamChat');
+    const groupTabBtn = document.getElementById('btnGroupTabCopyTeam');
+    const healTabBtn = document.getElementById('btnHealTabCopyTeam');
     const miniBtn = document.getElementById('btnMiniCopyChat');
+
     let res = null;
     try {
       if (window.pywebview && window.pywebview.api && window.pywebview.api.copy_chat_summary) {
-        res = await window.pywebview.api.copy_chat_summary(selectedEncounterIdx, '');
+        res = await window.pywebview.api.copy_chat_summary(selectedEncounterIdx, '', effectiveMode, cName);
       } else {
         const resp = await fetch('/api/copy_chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ encounter_index: selectedEncounterIdx }),
+          body: JSON.stringify({ encounter_index: selectedEncounterIdx, mode: effectiveMode, combatant_name: cName }),
         });
         res = await resp.json();
       }
@@ -2289,7 +2376,7 @@
     if (res && res.ok && res.text) {
       await _copyToBrowserClipboard(res.text);
       showChatCopyToast(res.text, false);
-      if (btn) {
+      if (btn && (!modeOverride || (modeOverride === 'group' && currentTab === 'group'))) {
         btn.dataset.justCopied = '1';
         btn.textContent = '✓ Copied!';
         btn.classList.add('active');
@@ -2297,6 +2384,34 @@
           delete btn.dataset.justCopied;
           btn.classList.remove('active');
           syncModeButtons();
+        }, 2000);
+      }
+      if (teamBtn && effectiveMode === 'group') {
+        teamBtn.dataset.justCopied = '1';
+        teamBtn.textContent = '✓ Team Copied!';
+        teamBtn.classList.add('active');
+        setTimeout(() => {
+          delete teamBtn.dataset.justCopied;
+          teamBtn.classList.remove('active');
+          syncModeButtons();
+        }, 2000);
+      }
+      if (groupTabBtn && effectiveMode === 'group' && !cName) {
+        const orig = '👥 Copy Team DPS for Chat';
+        groupTabBtn.textContent = '✓ Team DPS Copied!';
+        groupTabBtn.classList.add('active');
+        setTimeout(() => {
+          groupTabBtn.textContent = orig;
+          groupTabBtn.classList.remove('active');
+        }, 2000);
+      }
+      if (healTabBtn && effectiveMode === 'healing') {
+        const orig = '📋 Copy Heal & Tank for Chat';
+        healTabBtn.textContent = '✓ Heal/Tank Copied!';
+        healTabBtn.classList.add('active');
+        setTimeout(() => {
+          healTabBtn.textContent = orig;
+          healTabBtn.classList.remove('active');
         }, 2000);
       }
       if (miniBtn) {
@@ -2313,42 +2428,63 @@
     }
   }
 
-  async function copyRefToChat(refId) {
+  async function copyCombatantToChat(combatantIdx) {
+    if (!lastSnapshot || !Array.isArray(lastSnapshot.combatants)) return;
+    const c = lastSnapshot.combatants[combatantIdx];
+    if (!c) return;
+    await copyChatSummary('personal', c.name);
+  }
+
+  async function copyRefToChat(refId, mode) {
     const r = savedReferences.find(item => item.id === refId);
     if (!r) return;
     const isSess = Boolean(r.is_session) || (r.encounter_count && r.encounter_count > 1);
     const scopeTxt = isSess
       ? `Session: ${r.encounter_count || 1} fights (${r.duration} combat)`
       : `Fight: ${r.target} (${r.duration})`;
-    const specSuffix = r.discipline ? ` (${r.discipline})` : '';
-    const maxHitStr = (r.max_hit || 0) > 0
-      ? ` | Max: ${fmtNum(r.max_hit)}${r.max_hit_ability ? ' (' + r.max_hit_ability + ')' : ''}`
-      : '';
-    const topAbils = (r.abilities || []).slice(0, 3).map(a => `${a.name} ${Number(a.pct || 0).toFixed(0)}%`);
-    const topStr = topAbils.length > 0 ? ` | Top: ${topAbils.join(', ')}` : '';
-    let summary = `[Holocron] ${r.character || 'Player'}${specSuffix} — ${scopeTxt} | DPS: ${fmtNum(r.dps)} (${fmtNum(r.total_damage)} dmg) | Crit: ${(r.crit_pct || 0).toFixed(1)}% | Acc: ${(r.accuracy_pct || 100).toFixed(1)}% | APM: ${(r.apm || 0).toFixed(1)}${maxHitStr}${topStr}`;
-    if (summary.length > 250) {
-      summary = `[Holocron] ${r.character || 'Player'} — ${scopeTxt} | DPS: ${fmtNum(r.dps)} (${fmtNum(r.total_damage)} dmg) | Crit: ${(r.crit_pct || 0).toFixed(1)}% | APM: ${(r.apm || 0).toFixed(1)}${maxHitStr}${topStr}`.slice(0, 250);
+
+    let summary = '';
+    if (mode === 'group' && Array.isArray(r.combatants) && r.combatants.length > 0) {
+      const totalTeamDps = r.combatants.reduce((acc, c) => acc + (c.dps || 0), 0);
+      const totalTeamDmg = r.combatants.reduce((acc, c) => acc + (c.damage || 0), 0);
+      const ranked = r.combatants.slice(0, 6).map((c, idx) => {
+        const share = totalTeamDmg > 0 ? ((c.damage || 0) / totalTeamDmg) * 100.0 : 0.0;
+        return `${idx + 1}. ${c.name} ${fmtNum(c.dps)}/s (${share.toFixed(0)}%, ${(c.crit_pct || 0).toFixed(0)}%c)`;
+      });
+      summary = `[Holocron Team] ${r.label || r.target} (${r.duration}) | Team: ${fmtNum(totalTeamDps)}/s || ${ranked.join(' | ')}`.slice(0, 250);
+    } else {
+      const specSuffix = r.discipline ? ` (${r.discipline})` : '';
+      const maxHitStr = (r.max_hit || 0) > 0
+        ? ` | Max: ${fmtNum(r.max_hit)}${r.max_hit_ability ? ' (' + r.max_hit_ability + ')' : ''}`
+        : '';
+      const topAbils = (r.abilities || []).slice(0, 3).map(a => `${a.name} ${Number(a.pct || 0).toFixed(0)}%`);
+      const topStr = topAbils.length > 0 ? ` | Top: ${topAbils.join(', ')}` : '';
+      summary = `[Holocron] ${r.character || 'Player'}${specSuffix} — ${scopeTxt} | DPS: ${fmtNum(r.dps)} (${fmtNum(r.total_damage)} dmg) | Crit: ${(r.crit_pct || 0).toFixed(1)}% | Acc: ${(r.accuracy_pct || 100).toFixed(1)}% | APM: ${(r.apm || 0).toFixed(1)}${maxHitStr}${topStr}`;
+      if (summary.length > 250) {
+        summary = `[Holocron] ${r.character || 'Player'} — ${scopeTxt} | DPS: ${fmtNum(r.dps)} (${fmtNum(r.total_damage)} dmg) | Crit: ${(r.crit_pct || 0).toFixed(1)}% | APM: ${(r.apm || 0).toFixed(1)}${maxHitStr}${topStr}`.slice(0, 250);
+      }
     }
 
     if (window.pywebview && window.pywebview.api && window.pywebview.api.copy_chat_summary) {
-      await window.pywebview.api.copy_chat_summary(-2, summary);
+      await window.pywebview.api.copy_chat_summary(-2, summary, mode || 'personal', '');
     } else {
       await fetch('/api/copy_chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ encounter_index: -2, custom_text: summary }),
+        body: JSON.stringify({ encounter_index: -2, custom_text: summary, mode: mode || 'personal' }),
       }).catch(() => {});
     }
     await _copyToBrowserClipboard(summary);
     showChatCopyToast(summary, false);
 
-    const btn = document.getElementById('btnRefChat_' + refId);
+    const btnId = (mode === 'group' ? 'btnRefTeam_' : 'btnRefChat_') + refId;
+    const btn = document.getElementById(btnId);
     if (btn) {
+      const origTxt = mode === 'group' ? '👥 Team' : '📋 Chat';
       btn.textContent = '✓ Copied';
       btn.classList.add('active');
       setTimeout(() => {
-        btn.textContent = '📋 Chat';
+        btn.textContent = origTxt;
         btn.classList.remove('active');
       }, 2000);
     }
