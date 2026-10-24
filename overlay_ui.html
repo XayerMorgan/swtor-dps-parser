@@ -47,7 +47,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 7px 10px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
     background: linear-gradient(90deg, rgba(0, 212, 255, 0.14) 0%, rgba(18, 25, 41, 0.95) 60%);
     border-bottom: 1px solid var(--border-holo);
     flex-shrink: 0;
@@ -57,8 +58,9 @@
   .brand {
     display: flex;
     align-items: center;
-    gap: 7px;
-    min-width: 0;
+    gap: 6px;
+    flex-shrink: 0;
+    overflow: hidden;
   }
 
   .status-pill {
@@ -115,37 +117,46 @@
     font-size: 11.5px;
     color: var(--accent-cyan);
     white-space: nowrap;
+    display: none;
+  }
+
+  @media (min-width: 640px) {
+    .brand-title {
+      display: inline;
+    }
   }
 
   .header-controls {
     display: flex;
     align-items: center;
     gap: 4px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .header-divider {
     width: 1px;
-    height: 18px;
+    height: 16px;
     background: rgba(255, 255, 255, 0.16);
-    margin: 0 2px;
+    margin: 0 1px;
   }
 
   .btn {
     background: rgba(0, 212, 255, 0.10);
     border: 1px solid rgba(0, 212, 255, 0.34);
     color: var(--text-primary);
-    padding: 4px 8px;
-    min-height: 26px;
+    padding: 3px 6px;
+    min-height: 24px;
     border-radius: 4px;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .btn:hover {
@@ -910,7 +921,6 @@
   <!-- Header -->
   <div class="header">
     <div class="brand">
-      <img src="holocron_icon.png" alt="" width="20" height="20" style="border-radius: 4px; flex-shrink: 0;" />
       <span id="statusBadge" class="status-pill" title="Watching SWTOR CombatLogs folder">
         <span id="statusDot" class="status-dot ready"></span>
         <span id="statusText">LIVE</span>
@@ -920,12 +930,12 @@
     <div class="header-controls">
       <button id="btnSim" class="btn" onclick="toggleSimulation()" title="Run/Stop Live Combat Log Simulation">⚡ Demo</button>
       <button id="btnCompact" class="btn" onclick="toggleCompact()" title="Toggle Compact Mini HUD Mode (DPS, Crit, APM & Baseline Delta)">▣ Mini</button>
-      <button id="btnAutoMini" class="btn" onclick="toggleAutoMini()" title="Automatically switch to Mini HUD when entering combat and expand after combat">⚡ Auto-Mini</button>
+      <button id="btnAutoMini" class="btn" onclick="toggleAutoMini()" title="Automatically switch to Mini HUD when entering combat and expand after combat">⚡ Auto</button>
       <button id="btnOpacity" class="btn" onclick="cycleOpacity()" title="Cycle Overlay Transparency (100% / 85% / 70%)">◐ 100%</button>
       <button id="btnPin" class="btn active" onclick="togglePin()" title="Keep Window Always On Top of SWTOR">📌 Pin</button>
       <button id="btnHelp" class="btn" onclick="openHelpGuide()" title="Open Illustrated HTML Setup Manual in Browser">📖 Manual</button>
       <div class="header-divider" aria-hidden="true"></div>
-      <button id="btnUndoReset" class="btn btn-undo" style="display: none;" onclick="undoResetEncounters()" title="Restore the session encounters cleared by Reset">↩ Undo Reset</button>
+      <button id="btnUndoReset" class="btn btn-undo" style="display: none;" onclick="undoResetEncounters()" title="Restore the session encounters cleared by Reset">↩ Undo</button>
       <button id="btnReset" class="btn btn-danger" onclick="requestResetEncounters()" title="Clear Session & Encounter History (Requires Confirmation)">↺ Reset</button>
     </div>
   </div>

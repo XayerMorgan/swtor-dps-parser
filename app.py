@@ -247,8 +247,8 @@ class OverlayBridgeAPI:
                 SWP_NOZORDER = 0x0004
                 SWP_NOACTIVATE = 0x0010
                 SWP_ASYNCWINDOWPOS = 0x4000
-                target_w = int(460 * scale)
-                target_h = int((136 if compact else 560) * scale)
+                target_w = int(500 * scale)
+                target_h = int((144 if compact else 560) * scale)
                 ctypes.windll.user32.SetWindowPos(
                     hwnd,
                     0,
@@ -632,9 +632,9 @@ def main() -> None:
         title="SWTOR Holocron DPS Overlay",
         url=html_file.as_uri(),
         js_api=api,
-        width=460,
+        width=500,
         height=560,
-        min_size=(340, 115),
+        min_size=(380, 125),
         on_top=True,
         background_color="#0b0f19",
     )
