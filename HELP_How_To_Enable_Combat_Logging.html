@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SWTOR Holocron DPS — How to Enable Combat Logging & Find Log Files</title>
+<style>
+  :root {
+    --bg-dark: #070b14;
+    --bg-card: #101728;
+    --border-holo: rgba(0, 212, 255, 0.35);
+    --accent-cyan: #00d4ff;
+    --accent-gold: #ffb800;
+    --accent-emerald: #00e676;
+    --text-main: #ecf3ff;
+    --text-muted: #93a6c9;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: radial-gradient(circle at top, #121c33 0%, var(--bg-dark) 70%);
+    color: var(--text-main);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    padding: 36px 20px 60px;
+  }
+
+  .container {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  .hero {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.16) 0%, rgba(16, 23, 40, 0.96) 75%);
+    border: 1px solid var(--border-holo);
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  .hero h1 {
+    color: var(--accent-cyan);
+    font-size: 24px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .hero p {
+    color: var(--text-muted);
+    font-size: 15px;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-bottom: 22px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  .card h2 {
+    color: var(--accent-gold);
+    font-size: 18px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .step-badge {
+    background: rgba(255, 184, 0, 0.18);
+    border: 1px solid var(--accent-gold);
+    color: var(--accent-gold);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  ol, ul {
+    padding-left: 22px;
+    margin-bottom: 16px;
+  }
+
+  li {
+    margin-bottom: 8px;
+    font-size: 15px;
+  }
+
+  .kbd {
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    background: rgba(0, 212, 255, 0.14);
+    border: 1px solid rgba(0, 212, 255, 0.4);
+    color: var(--accent-cyan);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+
+  .highlight-check {
+    color: var(--accent-gold);
+    font-weight: 700;
+  }
+
+  .screenshot-frame {
+    margin-top: 14px;
+    border: 2px solid var(--border-holo);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #05080f;
+    box-shadow: 0 8px 28px rgba(0, 212, 255, 0.14);
+  }
+
+  .screenshot-frame img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .caption {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    background: rgba(0, 0, 0, 0.45);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .path-box {
+    background: #080c16;
+    border: 1px solid rgba(0, 212, 255, 0.35);
+    border-left: 4px solid var(--accent-cyan);
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-family: 'Consolas', monospace;
+    font-size: 14px;
+    color: var(--accent-cyan);
+    margin: 10px 0 14px;
+    word-break: break-all;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+    margin-top: 12px;
+  }
+
+  .feature-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 7px;
+    padding: 14px;
+  }
+
+  .feature-box h3 {
+    font-size: 14px;
+    color: var(--accent-cyan);
+    margin-bottom: 4px;
+  }
+
+  .feature-box p {
+    font-size: 13.5px;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <h1>SWTOR Holocron DPS — Quick Start & Setup Guide</h1>
+      <p>Follow the steps below to turn on combat logging in <em>Star Wars: The Old Republic</em> and see your live DPS, HPS, APM, and raid performance in real time.</p>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="card">
+      <h2><span class="step-badge">1</span> Turn On Combat Logging in SWTOR</h2>
+      <ol>
+        <li>Launch <strong>Star Wars: The Old Republic</strong> and log into your character.</li>
+        <li>Press <span class="kbd">ESC</span> (or <span class="kbd">Ctrl + P</span>) and click <strong>Preferences</strong>.</li>
+        <li>Make sure the <strong>GAME</strong> tab is selected at the bottom-left of the Preferences window.</li>
+        <li>Click <strong>COMBAT LOGGING</strong> in the left-hand category list.</li>
+        <li>Under <em>General</em>, check the box labeled <span class="highlight-check">☑ Enable combat logging to file</span>.</li>
+        <li>Click <strong>Apply</strong> and then <strong>OK</strong>.</li>
+      </ol>
+
+      <div class="screenshot-frame">
+        <img src="swtor_combat_logging_help.png" alt="SWTOR Preferences -> Combat Logging -> Enable combat logging to file" />
+        <div class="caption">
+          In-game <strong>Preferences &rarr; Game &rarr; Combat Logging</strong>: Check <strong>"Enable combat logging to file"</strong> on the right and click <strong>Apply</strong>.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="card">
+      <h2><span class="step-badge">2</span> Where SWTOR Saves Your Combat Log Files</h2>
+      <p>Once enabled, SWTOR automatically writes timestamped text files (<span class="kbd">combat_YYYY-MM-DD_HH_MM_SS_######.txt</span>) into your Windows Documents folder:</p>
+      <div class="path-box">
+        C:\Users\&lt;YourUsername&gt;\Documents\Star Wars - The Old Republic\CombatLogs
+      </div>
+      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">
+        <strong>Using Windows OneDrive?</strong> If your Documents folder is backed up by OneDrive, Windows stores the files at:
+      </p>
+      <div class="path-box" style="border-left-color: var(--accent-gold); color: var(--accent-gold);">
+        C:\Users\&lt;YourUsername&gt;\OneDrive\Documents\Star Wars - The Old Republic\CombatLogs
+      </div>
+      <p style="font-size: 14px; color: var(--text-muted);">
+        <strong>Automatic Detection:</strong> <code>SWTOR_DPS_Parser.exe</code> automatically checks both locations and watches whichever folder contains your newest <code>combat_*.txt</code> files. You can also click <strong>❓ Help &rarr; 📂 Change Folder</strong> inside the overlay at any time to pick a custom directory.
+      </p>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="card">
+      <h2><span class="step-badge">3</span> Using the Live In-Game Overlay</h2>
+      <ul>
+        <li><strong>Play in Fullscreen (Windowed) Mode:</strong> In SWTOR <em>Preferences &rarr; Graphics</em>, set Display Mode to <strong>Fullscreen (Windowed)</strong>. This allows the parser overlay to sit directly on top of your game screen without minimizing SWTOR.</li>
+        <li><strong>Automatic Encounter Detection:</strong> Every time you enter combat, the status indicator turns pulsing red and live DPS, Crit %, Accuracy %, APM, HPS, and DTPS update every 250ms.</li>
+      </ul>
+
+      <div class="grid-2">
+        <div class="feature-box">
+          <h3>📌 Pin (Always On Top)</h3>
+          <p>Keeps the DPS window floating above SWTOR while you play. Click to toggle on or off.</p>
+        </div>
+        <div class="feature-box">
+          <h3>▣ Mini HUD Mode</h3>
+          <p>Collapses the window into a compact horizontal stat bar showing only your key numbers during boss pulls.</p>
+        </div>
+        <div class="feature-box">
+          <h3>⚡ Demo Fight</h3>
+          <p>Streams a simulated boss fight so you can test the overlay and layout even when SWTOR is closed.</p>
+        </div>
+        <div class="feature-box">
+          <h3>Encounter History</h3>
+          <p>Use the dropdown menu above the tabs to inspect any previous boss pull or trash fight from your current log file.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
