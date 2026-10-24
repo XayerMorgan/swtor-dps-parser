@@ -306,8 +306,14 @@ class OverlayBridgeAPI:
 
     def apply_window_icon(self) -> bool:
         """
-        Applies holocron_icon.ico to the native Win32 HWND (both ICON_BIG for Alt-Tab /
-        Taskbar and ICON_SMALL for the title bar) using non-blocking PostMessageW.
+        Applies holocron_icon.ico to the native Win32 HWND for the Windows 11 Taskbar,
+        Alt-Tab switcher, and Window Title Bar using:
+        1. Persistent icon copy in %APPDATA%\\SWTOR_Holocron_DPS\\holocron_icon.ico
+        2. Win32 IPropertyStore (SHGetPropertyStoreForWindow) setting
+           PKEY_AppUserModel_RelaunchIconResource & PKEY_AppUserModel_ID directly on the HWND
+           so Windows 11 Taskbar never falls back to PyInstaller's default floppy-disk icon
+        3. WM_SETICON (ICON_BIG + ICON_SMALL) and SetClassLongPtrW (GCLP_HICON + GCLP_HICONSM)
+        4. SHChangeNotify(SHCNE_ASSOCCHANGED) to flush stale Windows Explorer icon cache
         """
         hwnd, _ = self._get_hwnd_and_scale()
         if not hwnd:
@@ -317,17 +323,100 @@ class OverlayBridgeAPI:
             return False
         try:
             import ctypes
+            import shutil
+            from ctypes import wintypes
+
+            # Persist icon outside _MEIPASS temp folder so Windows 11 Taskbar can always resolve it
+            appdata_dir = Path(os.environ.get("APPDATA", os.path.expanduser("~"))) / "SWTOR_Holocron_DPS"
+            appdata_dir.mkdir(parents=True, exist_ok=True)
+            persistent_ico = appdata_dir / "holocron_icon.ico"
+            if not persistent_ico.exists() or persistent_ico.stat().st_size != ico_path.stat().st_size:
+                shutil.copy2(ico_path, persistent_ico)
+            target_ico_str = str(persistent_ico.resolve())
+
+            # 1. Set Windows 11 Taskbar IPropertyStore RelaunchIconResource & AppUserModelID on HWND
+            class GUID(ctypes.Structure):
+                _fields_ = [
+                    ("Data1", wintypes.DWORD),
+                    ("Data2", wintypes.WORD),
+                    ("Data3", wintypes.WORD),
+                    ("Data4", wintypes.BYTE * 8),
+                ]
+
+            class PROPERTYKEY(ctypes.Structure):
+                _fields_ = [("fmtid", GUID), ("pid", wintypes.DWORD)]
+
+            class PROPVARIANT(ctypes.Structure):
+                _fields_ = [
+                    ("vt", wintypes.USHORT),
+                    ("wReserved1", wintypes.USHORT),
+                    ("wReserved2", wintypes.USHORT),
+                    ("wReserved3", wintypes.USHORT),
+                    ("pwszVal", wintypes.LPWSTR),
+                    ("ulongVal", wintypes.ULONG),
+                ]
+
+            IID_IPropertyStore = GUID(
+                0x886D8EEB, 0x8CF2, 0x4446, (wintypes.BYTE * 8)(0x8D, 0x02, 0xCD, 0xBA, 0x1D, 0xBD, 0xCF, 0x99)
+            )
+            FMTID_AppUserModel = GUID(
+                0x9F4C2855, 0x9F79, 0x4B39, (wintypes.BYTE * 8)(0xA8, 0xD0, 0xE1, 0xD4, 0x2D, 0xE1, 0xD5, 0xF3)
+            )
+            PKEY_AppUserModel_RelaunchIconResource = PROPERTYKEY(FMTID_AppUserModel, 3)
+            PKEY_AppUserModel_RelaunchDisplayNameResource = PROPERTYKEY(FMTID_AppUserModel, 4)
+            PKEY_AppUserModel_ID = PROPERTYKEY(FMTID_AppUserModel, 5)
+
+            store_ptr = ctypes.c_void_p()
+            hr = ctypes.windll.shell32.SHGetPropertyStoreForWindow(
+                wintypes.HWND(hwnd), ctypes.byref(IID_IPropertyStore), ctypes.byref(store_ptr)
+            )
+            if hr == 0 and store_ptr.value:
+                vtable = ctypes.cast(
+                    ctypes.cast(store_ptr, ctypes.POINTER(ctypes.c_void_p))[0], ctypes.POINTER(ctypes.c_void_p)
+                )
+                SetValueProto = ctypes.WINFUNCTYPE(
+                    ctypes.c_long, ctypes.c_void_p, ctypes.POINTER(PROPERTYKEY), ctypes.POINTER(PROPVARIANT)
+                )
+                CommitProto = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p)
+                ReleaseProto = ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)
+
+                set_val = SetValueProto(vtable[6])
+                commit_fn = CommitProto(vtable[7])
+                release_fn = ReleaseProto(vtable[2])
+
+                for pkey, val_str in (
+                    (PKEY_AppUserModel_ID, "SWTOR.Holocron.DPS.Meter.v2"),
+                    (PKEY_AppUserModel_RelaunchIconResource, f"{target_ico_str},0"),
+                    (PKEY_AppUserModel_RelaunchDisplayNameResource, "SWTOR Holocron DPS Overlay"),
+                ):
+                    pv = PROPVARIANT()
+                    pv.vt = 31  # VT_LPWSTR
+                    pv.pwszVal = val_str
+                    set_val(store_ptr, ctypes.byref(pkey), ctypes.byref(pv))
+
+                commit_fn(store_ptr)
+                release_fn(store_ptr)
+
+            # 2. Set WM_SETICON and Window Class icons (GCLP_HICON / GCLP_HICONSM)
             WM_SETICON = 0x0080
             ICON_SMALL = 0
             ICON_BIG = 1
             IMAGE_ICON = 1
             LR_LOADFROMFILE = 0x00000010
-            hicon_big = ctypes.windll.user32.LoadImageW(0, str(ico_path), IMAGE_ICON, 256, 256, LR_LOADFROMFILE)
-            hicon_small = ctypes.windll.user32.LoadImageW(0, str(ico_path), IMAGE_ICON, 32, 32, LR_LOADFROMFILE)
+            GCLP_HICON = -14
+            GCLP_HICONSM = -34
+
+            hicon_big = ctypes.windll.user32.LoadImageW(0, target_ico_str, IMAGE_ICON, 256, 256, LR_LOADFROMFILE)
+            hicon_small = ctypes.windll.user32.LoadImageW(0, target_ico_str, IMAGE_ICON, 32, 32, LR_LOADFROMFILE)
             if hicon_big:
                 ctypes.windll.user32.PostMessageW(hwnd, WM_SETICON, ICON_BIG, hicon_big)
+                ctypes.windll.user32.SetClassLongPtrW(hwnd, GCLP_HICON, hicon_big)
             if hicon_small:
                 ctypes.windll.user32.PostMessageW(hwnd, WM_SETICON, ICON_SMALL, hicon_small)
+                ctypes.windll.user32.SetClassLongPtrW(hwnd, GCLP_HICONSM, hicon_small)
+
+            # 3. Notify Windows Shell to refresh cached taskbar icons
+            ctypes.windll.shell32.SHChangeNotify(0x08000000, 0x0000, None, None)
             return True
         except Exception:
             return False
@@ -635,10 +724,10 @@ def main() -> None:
         run_browser_server(parser, lock, sim, port=args.port)
         return
 
-    # Set explicit Windows AppUserModelID so Taskbar and Alt-Tab display our custom Holocron icon
+    # Set explicit Windows AppUserModelID (v2) so Taskbar and Alt-Tab never use any stale cached icon
     try:
         import ctypes
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("SWTOR.Holocron.DPS.Overlay.1")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("SWTOR.Holocron.DPS.Meter.v2")
     except Exception:
         pass
 
