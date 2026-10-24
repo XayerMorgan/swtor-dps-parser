@@ -19,7 +19,10 @@ A lightweight, local-first live DPS parser, multi-hour session aggregator, and A
   - **▣ Mini & ⚡ Auto-Mini:** Collapses the window into a compact 4-tile HUD bar during combat and automatically expands after combat when `⚡ Auto` is active.
   - **◐ 100% / 85% / 70% Opacity:** Native Win32 layered window transparency so you can see the game world clearly behind the meter.
   - **Protected `↺ Reset` with `↩ Undo`:** Separated from live controls with a 2-step confirmation (`⚠ Confirm?`) and a 15-second **`↩ Undo`** recovery button so you never accidentally wipe a 2-hour session.
-- **Named Session Saving & Cross-Session Historical Analysis (`📈 History` & `💾 Save Session`):**
+- **One-Click Copy to Windows Clipboard for SWTOR In-Game Chat (`📋 Chat`):**
+  - Click **`📋 Chat`** in the Encounter Bar, the **`📋`** icon on the Personal DPS card (including in `▣ Mini` HUD mode), or **`📋 Chat`** on any saved Reference Card in `📈 History` to copy a single-line, SWTOR-chat-ready summary (`<= 250` characters, pure ASCII) to your Windows Clipboard—ready to paste (`Ctrl + V`) directly into `/p`, `/ops`, `/g`, or `/s` chat inside SWTOR:
+    `[Holocron Session] Magisterium, Marksmanship Sniper (58 fights, 17:45 combat / 51:15 span): 364 DPS (388,022 dmg) | Crit 37.9% | Acc 100.0% | 46.7 APM | Max 3,922 (Ambush) | Top: Suppressive Fire 51%, Snipe 18%, Penetrating Blasts 10%`
+- **Named Session Saving & Cross-Session Historical Analysis (`📈 History` & `💾 Save`):**
   - Save an entire play session under a custom **Session Name** (or save individual boss fights) to `%APPDATA%\SWTOR_Holocron_DPS\history_references.json` with all recorded skills & abilities preserved.
   - **🎯 Active Baseline Live Comparison:** Pin any saved Session or Fight as your active baseline to see real-time **$\Delta$ DPS**, **$\Delta$ Crit %**, and **per-ability $\Delta$ DPS** gains/losses right on the live HUD.
   - **📜 Import From Past Log Files:** Scan past `combat_*.txt` files in your `CombatLogs` folder and import either the **📦 Full Play Session** or specific boss encounters into your reference library.

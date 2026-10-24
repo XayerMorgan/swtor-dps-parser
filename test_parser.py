@@ -154,6 +154,22 @@ class TestSWTORParser(unittest.TestCase):
         self.assertEqual(restored_snap["session_summary"]["encounter_count"], 2)
         self.assertEqual(restored_snap["local_stats"]["damage"], 5000)
 
+        # Verify Session & Fight SWTOR Chat Clipboard Summary formatting
+        sess_chat = parser.format_chat_summary(-2)
+        self.assertTrue(sess_chat["ok"])
+        self.assertLessEqual(len(sess_chat["text"]), 250)
+        self.assertIn("[Holocron Session]", sess_chat["text"])
+        self.assertIn("2 fights", sess_chat["text"])
+        self.assertIn("500 DPS (5,000 dmg)", sess_chat["text"])
+        self.assertIn("Crit 75.0%", sess_chat["text"])
+        self.assertIn("Top: Followthrough 40%", sess_chat["text"])
+
+        fight_chat = parser.format_chat_summary(-1)
+        self.assertTrue(fight_chat["ok"])
+        self.assertLessEqual(len(fight_chat["text"]), 250)
+        self.assertIn("[Holocron] Magisterium vs Gorga Brak", fight_chat["text"])
+        self.assertIn("600 DPS (3,000 dmg)", fight_chat["text"])
+
 
 if __name__ == "__main__":
     unittest.main()

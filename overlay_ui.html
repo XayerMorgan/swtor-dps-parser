@@ -221,6 +221,36 @@
     border-color: var(--accent-emerald);
   }
 
+  .btn.btn-chat {
+    background: rgba(0, 212, 255, 0.14);
+    border-color: rgba(0, 212, 255, 0.52);
+    color: #9beeff;
+  }
+
+  .btn.btn-chat:hover {
+    background: rgba(0, 212, 255, 0.28);
+    border-color: var(--accent-cyan);
+    color: #ffffff;
+  }
+
+  .chat-copy-toast {
+    display: none;
+    padding: 5px 12px;
+    background: rgba(0, 230, 118, 0.14);
+    border-bottom: 1px solid rgba(0, 230, 118, 0.42);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: #98ffd1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+  }
+
+  .chat-copy-toast.visible {
+    display: block;
+  }
+
   /* Hero KPI Banner */
   .hero-banner {
     display: grid;
@@ -282,34 +312,37 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px;
+    flex-wrap: wrap;
+    padding: 5px 10px;
     background: rgba(14, 20, 34, 0.95);
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-    gap: 8px;
+    gap: 5px;
     flex-shrink: 0;
   }
 
   .encounter-select {
-    flex: 1;
+    flex: 1 1 130px;
+    min-width: 105px;
     background: rgba(8, 12, 21, 0.9);
     color: var(--text-primary);
     border: 1px solid rgba(0, 212, 255, 0.28);
     border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 12px;
+    padding: 3px 6px;
+    font-size: 11.5px;
     font-family: var(--font-ui);
     outline: none;
   }
 
   .timer-badge {
     font-family: var(--font-mono);
-    font-size: 13px;
+    font-size: 11.5px;
     font-weight: 700;
     color: var(--accent-cyan);
     background: rgba(0, 212, 255, 0.12);
     border: 1px solid rgba(0, 212, 255, 0.28);
-    padding: 3px 8px;
+    padding: 2px 7px;
     border-radius: 4px;
+    white-space: nowrap;
   }
 
   /* Boss HP Bar */
@@ -729,6 +762,7 @@
 
   /* Compact Mini-Overlay Mode */
   body.compact-mode .encounter-bar,
+  body.compact-mode .chat-copy-toast,
   body.compact-mode .baseline-bar,
   body.compact-mode .tabs,
   body.compact-mode .content,
@@ -943,9 +977,12 @@
   <!-- Hero KPI Banner -->
   <div class="hero-banner">
     <div class="kpi-card primary">
-      <div class="kpi-label" style="display: flex; justify-content: space-between; align-items: center;">
+      <div class="kpi-label" style="display: flex; justify-content: space-between; align-items: center; gap: 4px;">
         <span>Personal DPS</span>
-        <span id="kpiMiniDelta" class="delta-pill delta-neutral" style="display: none;"></span>
+        <span style="display: inline-flex; align-items: center; gap: 4px;">
+          <span id="kpiMiniDelta" class="delta-pill delta-neutral" style="display: none;"></span>
+          <button id="btnMiniCopyChat" class="btn btn-chat" style="padding: 0px 4px; font-size: 9.5px; line-height: 1.3;" onclick="copyChatSummary()" title="Copy Session or Fight DPS Summary to Windows Clipboard for SWTOR Chat (Ctrl+V)">📋</button>
+        </span>
       </div>
       <div id="kpiDps" class="kpi-value">0</div>
       <div id="kpiTotalDmg" class="kpi-sub">0 total dmg</div>
@@ -975,9 +1012,13 @@
       <option value="-2">📊 Full Session Total (Time to Date)</option>
       <option value="-1">⚔️ Current / Latest Fight Only</option>
     </select>
+    <button id="btnCopyChat" class="btn btn-xs btn-chat" onclick="copyChatSummary()" title="Copy Session or Fight DPS, Crit, APM, Max Hit & Top Skills to Windows Clipboard to paste (Ctrl+V) in SWTOR Chat">📋 Copy Chat</button>
     <button id="btnQuickSaveRef" class="btn btn-xs btn-save" onclick="quickSaveReference()" title="Save Full Session or Current Fight to Persistent History">💾 Save Session</button>
     <div id="timerBadge" class="timer-badge" title="Active Combat Time vs Total Session Span">Combat 00:00</div>
   </div>
+
+  <!-- Clipboard Copy Preview Toast -->
+  <div id="chatCopyToast" class="chat-copy-toast"></div>
 
   <!-- Active Baseline Comparison Bar -->
   <div id="baselineBar" class="baseline-bar">
@@ -1260,10 +1301,17 @@
     const btnSess = document.getElementById('btnModeSession');
     const btnFight = document.getElementById('btnModeFight');
     const btnQuick = document.getElementById('btnQuickSaveRef');
+    const btnChat = document.getElementById('btnCopyChat');
     if (btnSess) btnSess.classList.toggle('active', isSess);
     if (btnFight) btnFight.classList.toggle('active', !isSess);
     if (btnQuick && !btnQuick.dataset.justSaved) {
-      btnQuick.textContent = isSess ? '💾 Save Session' : '⭐ Save Fight';
+      btnQuick.textContent = isSess ? '💾 Save' : '⭐ Save';
+    }
+    if (btnChat && !btnChat.dataset.justCopied) {
+      btnChat.textContent = '📋 Chat';
+      btnChat.title = isSess
+        ? 'Copy Full Session DPS, Crit, APM, Max Hit & Top Skills to Windows Clipboard for SWTOR Chat (Ctrl+V)'
+        : 'Copy Current Fight DPS, Crit, APM, Max Hit & Top Skills to Windows Clipboard for SWTOR Chat (Ctrl+V)';
     }
   }
 
@@ -1290,8 +1338,15 @@
     const h = canvas.height;
     const plotBottom = h - 14;
     ctx.clearRect(0, 0, w, h);
+    ctx.textAlign = 'left';
 
-    if (!timeline || timeline.length < 2) {
+    let pts = Array.isArray(timeline) ? timeline.slice() : [];
+    if (pts.length === 1) {
+      const endSec = Math.max(totalSecs || 1, (pts[0][0] || 0) + 1, 1);
+      pts = [[0, pts[0][1]], [endSec, pts[0][1]]];
+    }
+
+    if (pts.length < 2) {
       chartInteractiveState = { timeline: [], markers: [], maxVal: 100, totalSecs: 0 };
       ctx.fillStyle = 'rgba(168, 186, 216, 0.45)';
       ctx.font = '11px Segoe UI';
@@ -1300,10 +1355,10 @@
       return;
     }
 
-    const values = timeline.map(pt => pt[1]);
+    const values = pts.map(pt => pt[1]);
     const maxVal = Math.max(...values, 100);
-    const maxTime = Math.max(totalSecs || 0, timeline[timeline.length - 1][0] || 1, 1);
-    chartInteractiveState = { timeline, markers: fightMarkers || [], maxVal, totalSecs: maxTime };
+    const maxTime = Math.max(totalSecs || 0, pts[pts.length - 1][0] || 1, 1);
+    chartInteractiveState = { timeline: pts, markers: fightMarkers || [], maxVal, totalSecs: maxTime };
 
     const markerInfo = (fightMarkers && fightMarkers.length > 1)
       ? ` · ${fightMarkers.length} Fights (hover/click)`
@@ -1332,8 +1387,8 @@
     grad.addColorStop(1, 'rgba(0, 212, 255, 0.02)');
 
     ctx.beginPath();
-    timeline.forEach((pt, i) => {
-      const x = (i / (timeline.length - 1)) * (w - 12) + 6;
+    pts.forEach((pt, i) => {
+      const x = (i / (pts.length - 1)) * (w - 12) + 6;
       const y = plotBottom - 2 - ((pt[1] / maxVal) * (plotBottom - 8));
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
@@ -1564,9 +1619,9 @@
       timerEl.title = `Active Combat Duration: ${snap.duration}`;
     }
 
-    // Hide Boss HP Bar in Session mode and when target is dead out of combat (F2)
+    // Hide Boss HP Bar in Session mode and when target HP reaches 0 (F2)
     const hpWrap = document.getElementById('bossHpWrap');
-    if (!snap.is_session_view && snap.target_hp && snap.target_hp.max > 0 && (snap.target_hp.current > 0 || snap.in_combat)) {
+    if (!snap.is_session_view && snap.target_hp && snap.target_hp.max > 0 && snap.target_hp.current > 0) {
       hpWrap.classList.add('visible');
       document.getElementById('bossHpName').textContent = snap.title;
       document.getElementById('bossHpText').textContent = `${fmtNum(snap.target_hp.current)} / ${fmtNum(snap.target_hp.max)} (${snap.target_hp.pct}%)`;
@@ -2049,6 +2104,7 @@
             </div>
             <div class="ref-actions">
               <button class="btn btn-xs ${isBase ? 'active' : ''}" onclick="setBaselineRef('${r.id}')" title="Pin/Unpin as Active Baseline for Live HUD Comparison">${isBase ? '🎯 Active Ref' : 'Set Baseline'}</button>
+              <button id="btnRefChat_${r.id}" class="btn btn-xs btn-chat" onclick="copyRefToChat('${r.id}')" title="Copy this saved Session/Fight summary to Windows Clipboard for SWTOR Chat (Ctrl+V)">📋 Chat</button>
               <button class="btn btn-xs" onclick="toggleExpandRef('${r.id}')" title="View All Recorded Skills & Compare">${isExpanded ? '▲ Hide' : `▼ Skills (${abilCount})`}</button>
               <button class="btn btn-xs" onclick="startRenameRef('${r.id}')" title="Rename Session / Edit Tag">✏️</button>
               <button class="btn btn-xs" onclick="deleteRef('${r.id}')" title="Delete Reference Point">🗑️</button>
@@ -2157,6 +2213,144 @@
         btn.classList.remove('active');
       }
       syncReferencesState(res);
+    }
+  }
+
+  let _chatToastTimer = null;
+
+  async function _copyToBrowserClipboard(text) {
+    if (!text) return false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) {
+      // Fallback to hidden textarea below
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function showChatCopyToast(text, isError) {
+    const toast = document.getElementById('chatCopyToast');
+    if (!toast) return;
+    if (_chatToastTimer) clearTimeout(_chatToastTimer);
+    if (isError) {
+      toast.style.background = 'rgba(255, 62, 85, 0.18)';
+      toast.style.borderColor = 'rgba(255, 62, 85, 0.5)';
+      toast.style.color = '#ffa6b0';
+      toast.textContent = `⚠ ${text}`;
+    } else {
+      toast.style.background = 'rgba(0, 230, 118, 0.14)';
+      toast.style.borderColor = 'rgba(0, 230, 118, 0.42)';
+      toast.style.color = '#98ffd1';
+      toast.textContent = `✓ Copied for SWTOR Chat (Ctrl+V): ${text}`;
+      toast.title = text;
+    }
+    toast.classList.add('visible');
+    _chatToastTimer = setTimeout(() => {
+      toast.classList.remove('visible');
+    }, 4500);
+  }
+
+  async function copyChatSummary() {
+    const btn = document.getElementById('btnCopyChat');
+    const miniBtn = document.getElementById('btnMiniCopyChat');
+    let res = null;
+    try {
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.copy_chat_summary) {
+        res = await window.pywebview.api.copy_chat_summary(selectedEncounterIdx, '');
+      } else {
+        const resp = await fetch('/api/copy_chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ encounter_index: selectedEncounterIdx }),
+        });
+        res = await resp.json();
+      }
+    } catch (e) {
+      res = null;
+    }
+
+    if (res && res.ok && res.text) {
+      await _copyToBrowserClipboard(res.text);
+      showChatCopyToast(res.text, false);
+      if (btn) {
+        btn.dataset.justCopied = '1';
+        btn.textContent = '✓ Copied!';
+        btn.classList.add('active');
+        setTimeout(() => {
+          delete btn.dataset.justCopied;
+          btn.classList.remove('active');
+          syncModeButtons();
+        }, 2000);
+      }
+      if (miniBtn) {
+        miniBtn.textContent = '✓';
+        miniBtn.classList.add('active');
+        setTimeout(() => {
+          miniBtn.textContent = '📋';
+          miniBtn.classList.remove('active');
+        }, 2000);
+      }
+    } else {
+      const errMsg = (res && res.error) ? res.error : 'Start a fight or click Demo first to copy stats.';
+      showChatCopyToast(errMsg, true);
+    }
+  }
+
+  async function copyRefToChat(refId) {
+    const r = savedReferences.find(item => item.id === refId);
+    if (!r) return;
+    const isSess = Boolean(r.is_session) || (r.encounter_count && r.encounter_count > 1);
+    const scopeTxt = isSess
+      ? `Session: ${r.encounter_count || 1} fights (${r.duration} combat)`
+      : `Fight: ${r.target} (${r.duration})`;
+    const specSuffix = r.discipline ? ` (${r.discipline})` : '';
+    const maxHitStr = (r.max_hit || 0) > 0
+      ? ` | Max: ${fmtNum(r.max_hit)}${r.max_hit_ability ? ' (' + r.max_hit_ability + ')' : ''}`
+      : '';
+    const topAbils = (r.abilities || []).slice(0, 3).map(a => `${a.name} ${Number(a.pct || 0).toFixed(0)}%`);
+    const topStr = topAbils.length > 0 ? ` | Top: ${topAbils.join(', ')}` : '';
+    let summary = `[Holocron] ${r.character || 'Player'}${specSuffix} — ${scopeTxt} | DPS: ${fmtNum(r.dps)} (${fmtNum(r.total_damage)} dmg) | Crit: ${(r.crit_pct || 0).toFixed(1)}% | Acc: ${(r.accuracy_pct || 100).toFixed(1)}% | APM: ${(r.apm || 0).toFixed(1)}${maxHitStr}${topStr}`;
+    if (summary.length > 250) {
+      summary = `[Holocron] ${r.character || 'Player'} — ${scopeTxt} | DPS: ${fmtNum(r.dps)} (${fmtNum(r.total_damage)} dmg) | Crit: ${(r.crit_pct || 0).toFixed(1)}% | APM: ${(r.apm || 0).toFixed(1)}${maxHitStr}${topStr}`.slice(0, 250);
+    }
+
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.copy_chat_summary) {
+      await window.pywebview.api.copy_chat_summary(-2, summary);
+    } else {
+      await fetch('/api/copy_chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encounter_index: -2, custom_text: summary }),
+      }).catch(() => {});
+    }
+    await _copyToBrowserClipboard(summary);
+    showChatCopyToast(summary, false);
+
+    const btn = document.getElementById('btnRefChat_' + refId);
+    if (btn) {
+      btn.textContent = '✓ Copied';
+      btn.classList.add('active');
+      setTimeout(() => {
+        btn.textContent = '📋 Chat';
+        btn.classList.remove('active');
+      }, 2000);
     }
   }
 

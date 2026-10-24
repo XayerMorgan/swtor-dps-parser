@@ -1206,7 +1206,7 @@ class SWTORLogParser:
             target_hp_info = None
             if title in enc.target_hp:
                 cur_hp, max_hp = enc.target_hp[title]
-                if max_hp > 0 and (cur_hp > 0 or enc.in_combat):
+                if max_hp > 0 and cur_hp > 0:
                     target_hp_info = {
                         "current": cur_hp,
                         "max": max_hp,
@@ -1237,6 +1237,68 @@ class SWTORLogParser:
             "active_baseline": self.get_active_baseline(),
             "references_count": len(self.references),
         }
+
+    def format_chat_summary(self, encounter_index: Optional[int] = -2) -> dict:
+        """
+        Formats a single-line, SWTOR-chat-safe (<250 chars, pure ASCII/Latin text)
+        summary of the selected Session (-2) or Fight (-1 / 0..N) ready to paste
+        into SWTOR in-game chat (/p, /ops, /g, /s) via Ctrl+V.
+        """
+        snap = self.get_snapshot(encounter_index)
+        if not snap.get("has_encounter") or not snap.get("local_stats"):
+            return {"ok": False, "text": "", "error": "No combat data to copy yet."}
+
+        p = snap["local_stats"]
+        player = snap.get("local_player") or p.get("name") or "Player"
+        spec = snap.get("discipline") or p.get("discipline") or ""
+        spec_str = f" ({spec})" if spec else ""
+        is_sess = bool(snap.get("is_session_view"))
+        sess_sum = snap.get("session_summary") or {}
+
+        if is_sess:
+            f_cnt = sess_sum.get("encounter_count", 1)
+            span_s = sess_sum.get("session_span", snap.get("duration", "00:00"))
+            header = f"[Holocron Session] {player}{spec_str} ({f_cnt} fights, {snap['duration']} combat / {span_s} span)"
+        else:
+            header = f"[Holocron] {player}{spec_str} vs {snap.get('title', 'Target')} ({snap.get('duration', '00:00')})"
+
+        core = (
+            f"{int(round(p.get('dps', 0))):,} DPS ({int(round(p.get('damage', 0))):,} dmg)"
+            f" | Crit {p.get('crit_pct', 0.0):.1f}% | Acc {p.get('accuracy_pct', 100.0):.1f}% | {p.get('apm', 0.0):.1f} APM"
+        )
+
+        extras = []
+        if p.get("max_hit", 0) > 0:
+            mh_abil = p.get("max_hit_ability") or "Hit"
+            extras.append(f"Max {int(round(p['max_hit'])):,} ({mh_abil})")
+        if p.get("hps", 0) >= 10:
+            extras.append(f"{int(round(p['hps'])):,} HPS")
+        if p.get("dtps", 0) >= 10:
+            extras.append(f"{int(round(p['dtps'])):,} DTPS")
+
+        base = snap.get("active_baseline")
+        if base and base.get("dps", 0) > 0:
+            diff = p.get("dps", 0) - base["dps"]
+            sign = "+" if diff >= 0 else ""
+            extras.append(f"vs Ref {sign}{int(round(diff)):,}/s")
+
+        abils = [
+            f"{a['name']} {a.get('pct', 0):.0f}%"
+            for a in (p.get("abilities") or [])[:3]
+            if a.get("total_damage", 0) > 0
+        ]
+
+        ext_str = (" | " + " | ".join(extras)) if extras else ""
+        top_str = (f" | Top: {', '.join(abils)}") if abils else ""
+
+        full_line = f"{header}: {core}{ext_str}{top_str}"
+        if len(full_line) > 250 and abils:
+            short_top = f" | Top: {abils[0]}"
+            full_line = f"{header}: {core}{ext_str}{short_top}"
+        if len(full_line) > 250:
+            full_line = f"{header}: {core}{ext_str}"[:250]
+
+        return {"ok": True, "text": full_line, "is_session": is_sess}
 
     # -------------------------------------------------------------------------
     # Historical Reference Points & Cross-Session Analysis

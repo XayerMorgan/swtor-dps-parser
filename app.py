@@ -546,6 +546,93 @@ class OverlayBridgeAPI:
         with self._lock:
             return self._parser.import_historical_encounter(file_name, int(encounter_index), label=label)
 
+    def _set_win32_clipboard(self, text: str) -> bool:
+        """Copies Unicode text directly into the native Windows Clipboard (64-bit safe)."""
+        if not text:
+            return False
+        try:
+            import ctypes
+            CF_UNICODETEXT = 13
+            GMEM_MOVEABLE = 0x0002
+
+            kernel32 = ctypes.windll.kernel32
+            user32 = ctypes.windll.user32
+
+            kernel32.GlobalAlloc.argtypes = [ctypes.c_uint, ctypes.c_size_t]
+            kernel32.GlobalAlloc.restype = ctypes.c_void_p
+            kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
+            kernel32.GlobalLock.restype = ctypes.c_void_p
+            kernel32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+            kernel32.GlobalFree.argtypes = [ctypes.c_void_p]
+            user32.OpenClipboard.argtypes = [ctypes.c_void_p]
+            user32.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
+            user32.SetClipboardData.restype = ctypes.c_void_p
+
+            encoded = text.encode("utf-16-le") + b"\x00\x00"
+            h_mem = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(encoded))
+            if not h_mem:
+                return False
+            ptr = kernel32.GlobalLock(h_mem)
+            if not ptr:
+                kernel32.GlobalFree(h_mem)
+                return False
+            ctypes.memmove(ptr, encoded, len(encoded))
+            kernel32.GlobalUnlock(h_mem)
+
+            hwnd, _ = self._get_hwnd_and_scale()
+            opened = False
+            for _ in range(5):
+                if user32.OpenClipboard(hwnd or None):
+                    opened = True
+                    break
+                time.sleep(0.02)
+            if not opened:
+                kernel32.GlobalFree(h_mem)
+                return False
+            user32.EmptyClipboard()
+            res = user32.SetClipboardData(CF_UNICODETEXT, h_mem)
+            user32.CloseClipboard()
+            return bool(res)
+        except Exception:
+            try:
+                from System.Threading import ApartmentState, Thread, ThreadStart
+                import System.Windows.Forms as WinForms
+
+                ok_holder = [False]
+
+                def _clip():
+                    try:
+                        WinForms.Clipboard.SetText(text)
+                        ok_holder[0] = True
+                    except Exception:
+                        pass
+
+                t = Thread(ThreadStart(_clip))
+                t.SetApartmentState(ApartmentState.STA)
+                t.Start()
+                t.Join()
+                return ok_holder[0]
+            except Exception:
+                return False
+
+    def copy_chat_summary(self, encounter_index: int = -2, custom_text: str = "") -> dict:
+        """
+        Formats the selected Session (-2) or Fight (-1 / >=0) summary (or custom reference text)
+        for SWTOR in-game chat and copies it to the Windows clipboard.
+        """
+        with self._lock:
+            if not self._sim.running:
+                self._parser.poll()
+            if custom_text and custom_text.strip():
+                res = {"ok": True, "text": custom_text.strip()[:250]}
+            else:
+                idx = encounter_index if (encounter_index >= 0 or encounter_index == -2) else None
+                res = self._parser.format_chat_summary(idx)
+        if res.get("ok") and res.get("text"):
+            copied = self._set_win32_clipboard(res["text"])
+            res["clipboard_ok"] = copied
+        return res
+
 
 def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSimulationWorker, port: int = 8765) -> None:
     """Runs a lightweight local FastAPI/Uvicorn server so the UI can also be tested in any browser."""
@@ -700,6 +787,20 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
         label = str(payload.get("label", ""))
         with lock:
             return JSONResponse(parser.import_historical_encounter(fname, eidx, label=label))
+
+    @app.post("/api/copy_chat")
+    def api_copy_chat(payload: dict):
+        enc_idx = int(payload.get("encounter_index", -2))
+        custom_text = str(payload.get("custom_text", "")).strip()
+        with lock:
+            if not sim.running:
+                parser.poll()
+            if custom_text:
+                res = {"ok": True, "text": custom_text[:250]}
+            else:
+                idx = enc_idx if (enc_idx >= 0 or enc_idx == -2) else None
+                res = parser.format_chat_summary(idx)
+        return JSONResponse(res)
 
     print(f"SWTOR Holocron DPS Web UI running at http://127.0.0.1:{port}")
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
