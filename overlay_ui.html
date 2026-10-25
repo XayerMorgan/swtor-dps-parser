@@ -120,7 +120,21 @@
     display: none;
   }
 
-  @media (min-width: 640px) {
+  .header-clock {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--accent-gold);
+    background: rgba(255, 184, 0, 0.10);
+    border: 1px solid rgba(255, 184, 0, 0.32);
+    border-radius: 4px;
+    padding: 1px 5px;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  @media (min-width: 680px) {
     .brand-title {
       display: inline;
     }
@@ -984,6 +998,7 @@
         <span id="statusDot" class="status-dot ready"></span>
         <span id="statusText">LIVE</span>
       </span>
+      <span id="headerClock" class="header-clock" title="Local 24-Hour Clock (Matches SWTOR Combat Log Timestamps)">00:00:00</span>
       <span class="brand-title">SWTOR Holocron DPS</span>
     </div>
     <div class="header-controls">
@@ -2879,8 +2894,21 @@
     }
   }
 
+  function updateHeaderClock() {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const time24 = `${hh}:${mm}:${ss}`;
+    const el = document.getElementById('headerClock');
+    if (el) el.textContent = time24;
+    document.title = `SWTOR Holocron DPS Overlay  •  ${time24}`;
+  }
+
+  setInterval(updateHeaderClock, 1000);
   setInterval(fetchSnapshot, 250);
   window.addEventListener('DOMContentLoaded', () => {
+    updateHeaderClock();
     setupChartInteractions();
     setTimeout(() => {
       fetchSnapshot();

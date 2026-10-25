@@ -421,9 +421,37 @@ class OverlayBridgeAPI:
 
             # 3. Notify Windows Shell to refresh cached taskbar icons
             ctypes.windll.shell32.SHChangeNotify(0x08000000, 0x0000, None, None)
+            self.start_window_title_clock()
             return True
         except Exception:
             return False
+
+    def start_window_title_clock(self) -> None:
+        """
+        Starts a lightweight daemon thread that updates the native Win32 window title bar
+        every second with a live 24-hour clock (HH:MM:SS) matching SWTOR combat log timestamps.
+        """
+        if getattr(self, "_clock_thread_started", False):
+            return
+        self._clock_thread_started = True
+
+        def _clock_worker() -> None:
+            import ctypes
+            from datetime import datetime
+            while True:
+                try:
+                    hwnd, _ = self._get_hwnd_and_scale()
+                    if hwnd:
+                        now_str = datetime.now().strftime("%H:%M:%S")
+                        ctypes.windll.user32.SetWindowTextW(
+                            hwnd, f"SWTOR Holocron DPS Overlay  \u2022  {now_str}"
+                        )
+                except Exception:
+                    pass
+                time.sleep(1.0)
+
+        t = threading.Thread(target=_clock_worker, daemon=True)
+        t.start()
 
     def choose_log_dir(self) -> str:
         """
@@ -862,8 +890,9 @@ def main() -> None:
     html_file = get_resource_path("overlay_ui.html")
     ico_file = get_resource_path("holocron_icon.ico")
 
+    from datetime import datetime as _dt
     window = webview.create_window(
-        title="SWTOR Holocron DPS Overlay",
+        title=f"SWTOR Holocron DPS Overlay  \u2022  {_dt.now().strftime('%H:%M:%S')}",
         url=html_file.as_uri(),
         js_api=api,
         width=520,
