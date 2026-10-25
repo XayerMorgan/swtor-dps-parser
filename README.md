@@ -52,6 +52,15 @@ See **[`HELP_How_To_Enable_Combat_Logging.html`](HELP_How_To_Enable_Combat_Loggi
 
 ---
 
+## Group Flashpoints & Operations: Why Teammates May See Different Numbers & How to Sync
+When multiple players parse the same Flashpoint or Operation, their local `combat_*.txt` files can differ due to how SWTOR's client writes combat logs:
+1. **Per-Login Log Files Spanning Earlier Runs (`📍 Zone Only` / `↺ Reset`):** SWTOR writes one `combat_*.txt` file per game login. If a teammate logged in earlier and ran another Flashpoint, Heroic, or Fleet dummy before joining your group, their **📊 Session** tab will include those earlier fights and players unless they click **`📍 Zone Only`** inside the **`Group DPS`** tab (filtering Session Mode to the current Flashpoint/Planet) or click **`↺ Reset`** when entering the instance.
+2. **Per-Combatant Active Combat Duration (`Nf` Badge):** In Session Mode, each player's `DPS`, `HPS`, `DTPS`, and `APM` are divided by the active duration of the exact fights *that player* participated in (`76f` badge on each row), so joining a group mid-file never dilutes a teammate's DPS across earlier fights they weren't present for.
+3. **SWTOR's ~70–100m Proximity Broadcast Radius (Engine Limitation):** Each player's SWTOR client only writes combat events to disk for teammates within **~70–100 meters**. During split hallway trash pulls, elevator transitions, or medcenter runbacks after a death, distant attacks are only logged by nearby clients. Boss fights keep the group in one room and match closely across all clients.
+4. **Stealth Openers, Mid-Fight Cloaks & Lingering DoTs:** Pre-cast openers or lingering DoTs can shift a client's local `EnterCombat` / `ExitCombat` boundary by 1–3 seconds. The parser locks encounter boundaries to the local player and merges brief combat drops (`<= 3s`) so a teammate using stealth cloak mid-pull won't split the encounter.
+
+---
+
 ## Running from Source / Building the Executable
 ```powershell
 # Run desktop overlay from source

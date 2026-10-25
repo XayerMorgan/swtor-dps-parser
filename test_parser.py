@@ -187,6 +187,48 @@ class TestSWTORParser(unittest.TestCase):
         decoded = SWTORLogParser._decode_log_line(cp1252_bytes)
         self.assertEqual(decoded, "Vísíblé Ghóst")
 
+    def test_group_flashpoint_sync_and_zone_filter(self) -> None:
+        parser = SWTORLogParser(log_dir=".")
+        lines = [
+            # Zone 1: Fleet Dummy / Earlier Group (10s fight)
+            "[20:38:00.000] [@Drocinth#689143939390001|0.0,0.0,0.0,0.0|100/100] [] [] [Event {836045448945472}: AreaEntered {836045448953664}: Vaiken Spacedock {137438989999}] ()",
+            "[20:38:01.000] [@Drocinth#689143939390001|0.0,0.0,0.0,0.0|100/100] [] [] [Event {836045448945472}: EnterCombat {836045448945489}] ()",
+            "[20:38:05.000] [@Drocinth#689143939390001|0.0,0.0,0.0,0.0|100/100] [Operations Training Dummy {4401001}:99001|0.0|90000/100000] [Rail Shot {807780464295001}] [ApplyEffect {836045448945477}: Damage {836045448945501}] (10000* ~10000 energy {836045448940874})",
+            "[20:38:06.000] [@Rhykan#689143939390099|0.0,0.0,0.0,0.0|100/100] [Operations Training Dummy {4401001}:99001|0.0|80000/100000] [Vicious Slash {807780464295099}] [ApplyEffect {836045448945477}: Damage {836045448945501}] (5000 ~5000 energy {836045448940874})",
+            "[20:38:11.000] [@Drocinth#689143939390001|0.0,0.0,0.0,0.0|100/100] [] [] [Event {836045448945472}: ExitCombat {836045448945490}] ()",
+            # Zone 2: Flashpoint with Magisterium & Cadbon (10s fight)
+            "[20:53:00.000] [@Drocinth#689143939390001|0.0,0.0,0.0,0.0|100/100] [] [] [Event {836045448945472}: AreaEntered {836045448953664}: Hammer Station {137438988888}] ()",
+            "[20:53:10.000] [@Drocinth#689143939390001|0.0,0.0,0.0,0.0|100/100] [] [] [Event {836045448945472}: EnterCombat {836045448945489}] ()",
+            # Teammate EnterCombat & mid-fight ExitCombat (stealth cloak) must NOT split or close Drocinth's fight
+            "[20:53:11.000] [@Magisterium#689143939390002|0.0,0.0,0.0,0.0|100/100] [] [] [Event {836045448945472}: EnterCombat {836045448945489}] ()",
+            "[20:53:12.000] [@Magisterium#689143939390002|0.0,0.0,0.0,0.0|100/100] [DN-314 Tunneler {4401002}:99002|0.0|50000/100000] [Ambush {807780464295912}] [ApplyEffect {836045448945477}: Damage {836045448945501}] (80000* ~80000 weapon {836045448940873})",
+            "[20:53:14.000] [@Drocinth#689143939390001|0.0,0.0,0.0,0.0|100/100] [DN-314 Tunneler {4401002}:99002|0.0|10000/100000] [Mag Shot {807780464295002}] [ApplyEffect {836045448945477}: Damage {836045448945501}] (50000* ~50000 weapon {836045448940873})",
+            "[20:53:15.000] [@Magisterium#689143939390002|0.0,0.0,0.0,0.0|100/100] [] [] [Event {836045448945472}: ExitCombat {836045448945490}] ()",
+            "[20:53:20.000] [@Drocinth#689143939390001|0.0,0.0,0.0,0.0|100/100] [] [] [Event {836045448945472}: ExitCombat {836045448945490}] ()",
+        ]
+        for line in lines:
+            parser.parse_line(line)
+
+        self.assertEqual(parser.local_player_name, "Drocinth")
+        self.assertEqual(len(parser.encounters), 2)
+
+        # In Full Session (both zones), Magisterium was only in Fight #2 (10s), so Magisterium's DPS must be 80,000 / 10s = 8,000 DPS (NOT diluted by Fight #1's 10s into 4,000 DPS!)
+        full_snap = parser.get_snapshot(-2)
+        mag_row = next(c for c in full_snap["combatants"] if c["name"] == "Magisterium")
+        self.assertEqual(mag_row["fight_count"], 1)
+        self.assertAlmostEqual(mag_row["dps"], 8000.0, places=1)
+        self.assertEqual(full_snap["session_summary"]["distinct_areas"], ["Vaiken Spacedock", "Hammer Station"])
+
+        # Enable Current Zone Only filter -> excludes Vaiken Spacedock & Rhykan!
+        parser.set_current_area_only(True)
+        zone_snap = parser.get_snapshot(-2)
+        self.assertTrue(zone_snap["current_area_only"])
+        self.assertEqual(zone_snap["session_summary"]["encounter_count"], 1)
+        combatant_names = [c["name"] for c in zone_snap["combatants"]]
+        self.assertIn("Magisterium", combatant_names)
+        self.assertIn("Drocinth", combatant_names)
+        self.assertNotIn("Rhykan", combatant_names)
+
 
 if __name__ == "__main__":
     unittest.main()

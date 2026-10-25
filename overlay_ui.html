@@ -1101,16 +1101,38 @@
 
     <!-- Tab: Group Raid DPS -->
     <div id="tab-group" class="tab-pane" style="display: none;">
-      <div id="groupSummaryBar" class="team-summary-bar" style="display: none;">
+      <div id="groupSummaryBar" class="team-summary-bar" style="display: none; flex-wrap: wrap; gap: 6px;">
         <div id="groupSummaryText" class="team-summary-stats">👥 Team Total: 0 DPS</div>
-        <div style="display: flex; gap: 4px; flex-shrink: 0;">
-          <button id="btnGroupTabCopyTeam" class="btn btn-xs btn-chat" onclick="copyChatSummary('group')" title="Copy Whole-Team Group DPS Leaderboard (#1..#N) to Windows Clipboard for SWTOR Party/Ops Chat (Ctrl+V)">👥 Copy Team DPS for Chat</button>
+        <div style="display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap;">
+          <button id="btnAreaOnly" class="btn btn-xs" onclick="toggleAreaOnly()" title="Filter Session Mode to only encounters inside your current Flashpoint / Operation / Planet (excludes earlier runs in the same combat_*.txt file)">📍 Zone Only</button>
+          <button id="btnGroupTabCopyTeam" class="btn btn-xs btn-chat" onclick="copyChatSummary('group')" title="Copy Whole-Team Group DPS Leaderboard (#1..#N) to Windows Clipboard for SWTOR Party/Ops Chat (Ctrl+V)">👥 Copy Team DPS</button>
           <button class="btn btn-xs" onclick="copyChatSummary('personal')" title="Copy Only Your Personal DPS Breakdown">📋 My DPS</button>
+          <button id="btnGroupExplain" class="btn btn-xs" onclick="toggleGroupSyncInfo()" title="Why do two teammates in the same Flashpoint sometimes see different numbers? Click to view SWTOR combat log limitations &amp; how to sync">⚠️ Why Numbers Differ?</button>
         </div>
+      </div>
+      <div id="groupMultiZoneBanner" style="display: none; margin-bottom: 6px; padding: 5px 8px; border-radius: 4px; background: rgba(255, 184, 0, 0.11); border: 1px solid rgba(255, 184, 0, 0.35); font-size: 10.5px; color: var(--text-primary); align-items: center; justify-content: space-between; gap: 6px;">
+        <span id="groupMultiZoneText">📍 Multiple zones or earlier group fights detected in this log file.</span>
+        <div style="display: flex; gap: 4px; flex-shrink: 0;">
+          <button class="btn btn-xs active" onclick="toggleAreaOnly()">📍 Filter Current Zone</button>
+          <button class="btn btn-xs" onclick="toggleGroupSyncInfo()">ℹ️ Explain</button>
+        </div>
+      </div>
+      <div id="groupSyncInfoBox" class="help-step" style="display: none; margin-bottom: 8px; border-color: rgba(255, 184, 0, 0.42);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <h4 style="margin-bottom: 0;">⚠️ Why Group Flashpoint / Raid Numbers Can Differ Between Teammates</h4>
+          <button class="btn btn-xs" onclick="toggleGroupSyncInfo()">Close ×</button>
+        </div>
+        <ul style="font-size: 11px; line-height: 1.45; margin-bottom: 4px;">
+          <li><strong>1. Earlier Runs in the Same Log File (<span class="code-pill">📍 Zone Only</span> / <span class="code-pill">↺ Reset</span>):</strong> SWTOR creates one <code>combat_*.txt</code> file per game login. If a teammate logged in earlier and ran another Flashpoint, Heroic, or Fleet dummy before joining your group, their <strong>📊 Session</strong> tab will include those earlier fights and players unless they click <strong style="color: var(--accent-cyan);">📍 Zone Only</strong> or <strong style="color: var(--accent-crimson);">↺ Reset</strong> when entering the Flashpoint.</li>
+          <li><strong>2. Per-Player Active Combat Time (<span class="code-pill">Nf</span> badge):</strong> Each player's DPS is calculated from the exact fights they participated in (shown as <code>76f</code> on their row), so joining a log file mid-session never dilutes a teammate's DPS.</li>
+          <li><strong>3. SWTOR's ~70–100m Proximity Log Radius (Game Engine Limit):</strong> SWTOR's game client only writes a teammate's attacks to your local log file when you are within <strong>~70–100 meters</strong> of them. If teammates split across corridors, take an elevator early, pull trash ahead while someone loots, or run back from a medcenter after dying, each player's client only records hits that occurred near them.</li>
+          <li><strong>4. Stealth Openers, Combat Drops &amp; DoTs:</strong> Pre-cast openers, stealth cloaks, or lingering DoTs can shift a player's local <code>EnterCombat</code> / <code>ExitCombat</code> boundary by 1–3 seconds relative to teammates.</li>
+          <li><strong>5. How to Get Matched Team Numbers:</strong> Ensure everyone runs the <strong>latest <code>.exe</code></strong> (older builds had an accented-character file re-read bug), click <strong style="color: var(--accent-cyan);">📍 Zone Only</strong> (or <strong>↺ Reset</strong> at Flashpoint start), or compare individual boss pulls in <strong style="color: var(--accent-gold);">⚔️ Fight</strong> mode where all 4 players stay in the same room!</li>
+        </ul>
       </div>
       <div class="meter-col-header">
         <span># · Combatant · Discipline</span>
-        <span>Crit % · APM · Total Dmg · DPS</span>
+        <span>Crit % · APM · Fights · Total Dmg · DPS</span>
       </div>
       <div id="groupList" class="meter-list"></div>
     </div>
@@ -1250,6 +1272,16 @@
         <div class="help-img-box">
           <img src="swtor_overlay_screenshot.png" alt="SWTOR Holocron DPS Overlay — Live Session View" onclick="openHelpGuide()" title="Click to open full-size Illustrated Manual" />
         </div>
+      </div>
+
+      <div class="help-step">
+        <h4>5. Group Flashpoints &amp; Raids: Why Teammates May See Different Numbers</h4>
+        <ul>
+          <li><strong>Per-Login Log Files (<span class="code-pill">📍 Zone Only</span> / <span class="code-pill">↺ Reset</span>):</strong> SWTOR writes one <code>combat_*.txt</code> file per login session. If one player ran an earlier Flashpoint, Warzone, or Heroic before joining your group, their <strong>📊 Session</strong> tab will include those earlier fights and players unless they toggle <strong>📍 Zone Only</strong> in the <em>Group DPS</em> tab or click <strong>↺ Reset</strong> at the start of the Flashpoint.</li>
+          <li><strong>SWTOR's ~70–100m Network Awareness Radius:</strong> Each player's game client only writes combat events to disk for players within roughly <strong>70–100 meters</strong>. During split trash pulls, hallway running, elevator transitions, or medcenter runbacks after a death, distant teammates' attacks are not broadcast to your local log file. Boss encounters keep the group in one room and match much more closely.</li>
+          <li><strong>Per-Player Active Combat Time:</strong> In <em>Group DPS</em>, each player's DPS is divided by the active duration of the fights <em>that player</em> actually participated in (<code>Nf</code> badge), preventing earlier solo/group fights from diluting a late-joining teammate's DPS.</li>
+          <li><strong>Keep All Teammates on the Latest <code>.exe</code>:</strong> Earlier parser builds could re-read a log file multiple times if a character name contained special accented characters (e.g. <code>’</code> or <code>é</code>). Always ensure your group is on the latest release.</li>
+        </ul>
       </div>
     </div>
   </div>
@@ -1743,9 +1775,39 @@
 
     const gSumBar = document.getElementById('groupSummaryBar');
     const gSumTxt = document.getElementById('groupSummaryText');
+    const btnArea = document.getElementById('btnAreaOnly');
+    const isAreaOnly = Boolean(snap.current_area_only);
+    const distinctAreas = (sessSum && Array.isArray(sessSum.distinct_areas)) ? sessSum.distinct_areas : [];
+    const curAreaName = snap.area_name || (distinctAreas.length > 0 ? distinctAreas[distinctAreas.length - 1] : '');
+
+    if (btnArea) {
+      btnArea.classList.toggle('active', isAreaOnly);
+      btnArea.textContent = isAreaOnly
+        ? `📍 Zone: ${curAreaName ? curAreaName.slice(0, 14) : 'Current'}`
+        : '📍 Zone Only';
+    }
+
     if (gSumBar && gSumTxt) {
       gSumBar.style.display = combatants.length > 0 ? 'flex' : 'none';
-      gSumTxt.innerHTML = `<span style="color:var(--accent-gold); font-weight:700;">👥 Team (${combatants.length}): ${fmtNum(totalTeamDps)}/s</span> <span style="color:var(--text-muted);">· ${fmtNum(totalTeamDmg)} dmg</span>`;
+      const zonePill = (isAreaOnly && curAreaName)
+        ? ` <span class="meter-badge" style="color:var(--accent-cyan); border-color:rgba(0,212,255,0.4);">📍 ${escHtml(curAreaName)}</span>`
+        : '';
+      gSumTxt.innerHTML = `<span style="color:var(--accent-gold); font-weight:700;">👥 Team (${combatants.length}): ${fmtNum(totalTeamDps)}/s</span> <span style="color:var(--text-muted);">· ${fmtNum(totalTeamDmg)} dmg</span>${zonePill}`;
+    }
+
+    const multiZoneBanner = document.getElementById('groupMultiZoneBanner');
+    const multiZoneText = document.getElementById('groupMultiZoneText');
+    if (multiZoneBanner && multiZoneText) {
+      const hasMultiAreas = snap.is_session_view && distinctAreas.length > 1 && !isAreaOnly;
+      const hasMixedRosters = snap.is_session_view && combatants.length > 4 && combatants.some(c => (c.fight_count || 0) > 0 && c.fight_count < (sessSum.encounter_count || 1) * 0.6) && !isAreaOnly;
+      if (hasMultiAreas || hasMixedRosters) {
+        multiZoneBanner.style.display = 'flex';
+        multiZoneText.textContent = hasMultiAreas
+          ? `📍 Log file spans ${distinctAreas.length} zones (${distinctAreas.slice(-2).join(' → ')}). Filter to current Flashpoint?`
+          : `📍 Log file includes players from earlier fights (${combatants.length} players total). Filter to current zone?`;
+      } else {
+        multiZoneBanner.style.display = 'none';
+      }
     }
 
     const hSumBar = document.getElementById('healSummaryBar');
@@ -1761,8 +1823,11 @@
       const barWidth = Math.max(2, (c.damage / maxPlayerDmg) * 100);
       const sharePct = totalTeamDmg > 0 ? ((c.damage || 0) / totalTeamDmg) * 100.0 : 0.0;
       const fillClass = c.is_local ? 'meter-fill local-player' : 'meter-fill';
+      const fightBadge = (snap.is_session_view && (c.fight_count || 0) > 0)
+        ? ` · ${c.fight_count}f`
+        : '';
       groupHtml += `
-        <div class="meter-row" title="#${idx + 1} ${escHtml(c.name)} ${c.discipline ? '(' + escHtml(c.discipline) + ')' : ''} — ${fmtNum(c.dps)} DPS (${sharePct.toFixed(1)}% of team dmg) | ${fmtNum(c.damage)} dmg | ${c.crit_pct.toFixed(1)}% crit | ${c.apm.toFixed(1)} APM">
+        <div class="meter-row">
           <div class="${fillClass}" style="width: ${barWidth.toFixed(1)}%;"></div>
           <div class="meter-left">
             <span class="rank-num">${idx + 1}.</span>
@@ -1771,7 +1836,7 @@
             ${combatants.length > 1 ? `<span class="meter-badge" style="color:var(--accent-gold); border-color:rgba(255,184,0,0.35);" title="Share of Total Team Damage">${sharePct.toFixed(0)}%</span>` : ''}
           </div>
           <div class="meter-right">
-            <span class="stat-muted">${c.crit_pct.toFixed(1)}% crit · ${c.apm.toFixed(0)} APM</span>
+            <span class="stat-muted" title="Crit: ${c.crit_pct.toFixed(1)}% · APM: ${c.apm.toFixed(1)}${c.fight_count ? ' · Active in ' + c.fight_count + ' fights (' + fmtSecs(c.active_combat_seconds || 0) + ')' : ''}">${c.crit_pct.toFixed(1)}% crit · ${c.apm.toFixed(0)} APM${fightBadge}</span>
             <span class="stat-muted">${fmtNum(c.damage)}</span>
             <span class="stat-highlight">${fmtNum(c.dps)}/s</span>
             <button class="btn btn-chat" style="padding: 1px 4px; font-size: 9.5px;" onclick="copyCombatantToChat(${idx})" title="Copy ${escHtml(c.name)}'s DPS breakdown to Windows Clipboard for SWTOR Chat">📋</button>
@@ -2592,6 +2657,29 @@
     undoBannerExpireAt = 0;
     selectedEncounterIdx = -2;
     fetchSnapshot();
+  }
+
+  async function toggleAreaOnly() {
+    const nextState = !(lastSnapshot && lastSnapshot.current_area_only);
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.set_current_area_only) {
+      await window.pywebview.api.set_current_area_only(nextState);
+    } else {
+      await fetch('/api/set_area_only', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: nextState }),
+      });
+    }
+    fetchSnapshot();
+  }
+
+  function toggleGroupSyncInfo() {
+    const box = document.getElementById('groupSyncInfoBox');
+    const btn = document.getElementById('btnGroupExplain');
+    if (!box) return;
+    const isVisible = box.style.display !== 'none';
+    box.style.display = isVisible ? 'none' : 'block';
+    if (btn) btn.classList.toggle('active', !isVisible);
   }
 
   async function togglePin() {

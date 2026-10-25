@@ -207,6 +207,8 @@ class CombatantStats:
     hits: int = 0
     crits: int = 0
     misses: int = 0
+    active_combat_seconds: float = 0.0
+    fight_count: int = 0
     abilities: Dict[str, AbilityStats] = field(default_factory=dict)
 
 
@@ -263,9 +265,11 @@ class SWTORLogParser:
         self.last_parsed_time: Optional[datetime] = None
 
         self.local_player_name: str = ""
+        self._local_player_locked: bool = False
         self.local_discipline: str = ""
         self.player_disciplines: Dict[str, str] = {}
         self.current_area: str = "Unknown Area"
+        self.current_area_only: bool = False
         self.include_companions_in_player: bool = True
 
         self.encounters: List[Encounter] = []
@@ -493,6 +497,12 @@ class SWTORLogParser:
         self.file_pos = 0
         self.last_parsed_time = None
         self.base_date = self._extract_date_from_filename(file_path.name)
+        if read_from_start:
+            self.encounters.clear()
+            self.active_encounter = None
+            self._encounter_counter = 0
+            self._last_timeline_bucket = -1
+            self._local_player_locked = False
 
     @staticmethod
     def _decode_log_line(raw_bytes: bytes) -> str:
@@ -594,6 +604,10 @@ class SWTORLogParser:
             file_size = self.current_file.stat().st_size
             if file_size < self.file_pos:
                 self.file_pos = 0
+                self.encounters.clear()
+                self.active_encounter = None
+                self._encounter_counter = 0
+                self._last_timeline_bucket = -1
             if file_size == self.file_pos:
                 return 0
 
@@ -725,11 +739,30 @@ class SWTORLogParser:
         ability_name, ability_id = parse_name_and_id(abil_raw)
 
         # Check AreaEntered (only logged for the local player!)
-        if action_id == ID_AREA_ENTERED or "AreaEntered" in action_name:
-            if effect_name:
-                self.current_area = effect_name
+        if (
+            action_id == ID_AREA_ENTERED
+            or effect_id == ID_AREA_ENTERED
+            or "AreaEntered" in action_name
+            or "AreaEntered" in effect_name
+            or "AreaEntered" in act_raw
+        ):
+            area_candidate = ""
+            if ":" in effect_part and "AreaEntered" in effect_part:
+                _, after_ae = effect_part.split(":", 1)
+                area_candidate, _ = parse_name_and_id(after_ae)
+            elif "AreaEntered" not in effect_name and effect_name:
+                area_candidate = effect_name
+            elif ability_name and "AreaEntered" not in ability_name:
+                area_candidate = ability_name
+            if not area_candidate and rem_raw:
+                vm = VALUE_PAREN_PATTERN.search(rem_raw)
+                if vm:
+                    area_candidate = re.sub(r"\s*\{[^}]*\}", "", vm.group(1)).strip()
+            if area_candidate:
+                self.current_area = area_candidate
             if src.is_player and src.name:
                 self.local_player_name = src.name
+                self._local_player_locked = True
             return
 
         # Check DisciplineChanged
@@ -770,15 +803,34 @@ class SWTORLogParser:
 
         # Handle explicit EnterCombat / ExitCombat
         if effect_id == ID_ENTER_COMBAT or "EnterCombat" in effect_name:
-            if src.is_player and src.name:
+            if src.is_player and src.name and not self._local_player_locked:
                 self.local_player_name = src.name
+                self._local_player_locked = True
+            # If already in an active group encounter, do not split the fight when a teammate enters combat
+            if self.active_encounter and self.active_encounter.in_combat:
+                self.active_encounter.end_time = max(self.active_encounter.end_time, timestamp)
+                self.active_encounter.last_combat_event_time = timestamp
+                return
+            # If a fight just closed <= 3.0s ago in the same area (e.g. combat stealth / brief drop), reopen it
+            if (
+                self.encounters
+                and self.encounters[-1].area_name == self.current_area
+                and 0 <= (timestamp - self.encounters[-1].end_time).total_seconds() <= 3.0
+            ):
+                self.active_encounter = self.encounters[-1]
+                self.active_encounter.in_combat = True
+                self.active_encounter.end_time = max(self.active_encounter.end_time, timestamp)
+                self.active_encounter.last_combat_event_time = timestamp
+                return
             self._start_encounter(timestamp)
             return
 
         if effect_id == ID_EXIT_COMBAT or "ExitCombat" in effect_name:
-            if self.active_encounter and self.active_encounter.in_combat:
-                self.active_encounter.last_combat_event_time = timestamp
-                self._close_encounter(timestamp)
+            # Only close the encounter if ExitCombat is for the local player (or unattributed)
+            if not src.name or not self.local_player_name or src.name == self.local_player_name:
+                if self.active_encounter and self.active_encounter.in_combat:
+                    self.active_encounter.last_combat_event_time = timestamp
+                    self._close_encounter(timestamp)
             return
 
         # Handle Death event
@@ -820,10 +872,18 @@ class SWTORLogParser:
         tilde_effective = int(dmg_match.group(3)) if dmg_match.group(3) is not None else None
         sub_token = (dmg_match.group(4) or "").strip()
 
-        # Auto-start encounter if we receive a Damage event while not in combat
+        # Auto-start (or reopen recent) encounter if we receive a Damage event while not in combat
         if is_damage and not self.active_encounter:
             if src.is_player or src.is_companion or tgt.is_player or tgt.is_companion:
-                self._start_encounter(timestamp)
+                if (
+                    self.encounters
+                    and self.encounters[-1].area_name == self.current_area
+                    and 0 <= (timestamp - self.encounters[-1].end_time).total_seconds() <= 3.0
+                ):
+                    self.active_encounter = self.encounters[-1]
+                    self.active_encounter.in_combat = True
+                else:
+                    self._start_encounter(timestamp)
 
         enc = self.active_encounter
         if not enc:
@@ -925,10 +985,32 @@ class SWTORLogParser:
         mins, rem = divmod(secs, 60)
         return f"{mins:02d}:{rem:02d}"
 
-    def _compute_session_summary(self) -> dict:
+    def _get_session_encounters(self) -> List[Encounter]:
+        """Returns the encounters included in Session Mode (all or filtered to current_area)."""
         if not self.encounters:
+            return []
+        if self.current_area_only and self.current_area and self.current_area != "Unknown Area":
+            filtered = [e for e in self.encounters if e.area_name == self.current_area]
+            if filtered:
+                return filtered
+        return self.encounters
+
+    def set_current_area_only(self, enabled: bool) -> bool:
+        self.current_area_only = bool(enabled)
+        return self.current_area_only
+
+    def _compute_session_summary(self) -> dict:
+        sess_encs = self._get_session_encounters()
+        distinct_areas = []
+        for e in self.encounters:
+            if e.area_name and e.area_name not in distinct_areas:
+                distinct_areas.append(e.area_name)
+        if not sess_encs:
             return {
                 "encounter_count": 0,
+                "total_log_encounters": len(self.encounters),
+                "current_area_only": self.current_area_only,
+                "distinct_areas": distinct_areas,
                 "combat_duration": "00:00",
                 "combat_seconds": 0.0,
                 "session_span": "00:00",
@@ -937,12 +1019,15 @@ class SWTORLogParser:
                 "session_end": "--:--:--",
                 "session_name": self.session_name,
             }
-        total_combat = sum(e.duration_seconds for e in self.encounters)
-        first_start = self.encounters[0].start_time
-        last_end = self.encounters[-1].end_time
+        total_combat = sum(e.duration_seconds for e in sess_encs)
+        first_start = sess_encs[0].start_time
+        last_end = sess_encs[-1].end_time
         span_secs = max((last_end - first_start).total_seconds(), total_combat)
         return {
-            "encounter_count": len(self.encounters),
+            "encounter_count": len(sess_encs),
+            "total_log_encounters": len(self.encounters),
+            "current_area_only": self.current_area_only,
+            "distinct_areas": distinct_areas,
             "combat_duration": self._format_hms(total_combat),
             "combat_seconds": round(total_combat, 1),
             "session_span": self._format_hms(span_secs),
@@ -958,12 +1043,13 @@ class SWTORLogParser:
         Encounter object so the player can analyze all skills, abilities, hits, crits,
         and total damage across 7-10+ pulls or a full 2+ hour gaming session.
         """
-        if not self.encounters:
+        sess_encs = self._get_session_encounters()
+        if not sess_encs:
             return None
 
-        first_start = self.encounters[0].start_time
-        last_end = self.encounters[-1].end_time
-        in_combat = any(e.in_combat for e in self.encounters)
+        first_start = sess_encs[0].start_time
+        last_end = sess_encs[-1].end_time
+        in_combat = any(e.in_combat for e in sess_encs)
         sess_title = self.session_name.strip() if self.session_name.strip() else f"{self.current_area} — Session Total"
 
         agg = Encounter(
@@ -972,11 +1058,12 @@ class SWTORLogParser:
             end_time=last_end,
             in_combat=in_combat,
             area_name=self.current_area,
-            primary_target=f"{sess_title} ({len(self.encounters)} fights)",
+            primary_target=f"{sess_title} ({len(sess_encs)} fights)",
         )
 
         # Aggregate combatants and unify abilities by human-readable skill name
-        for e in self.encounters:
+        for e in sess_encs:
+            e_dur = e.duration_seconds
             for tgt_name, dmg_val in e.target_damage.items():
                 agg.target_damage[tgt_name] = agg.target_damage.get(tgt_name, 0) + dmg_val
 
@@ -1004,6 +1091,9 @@ class SWTORLogParser:
                 ac.hits += c.hits
                 ac.crits += c.crits
                 ac.misses += c.misses
+                if c.damage_dealt > 0 or c.healing_done > 0 or c.damage_taken > 0 or c.actions > 0:
+                    ac.active_combat_seconds += e_dur
+                    ac.fight_count += 1
 
                 for ab in c.abilities.values():
                     skill_key = ab.name or ab.ability_id or "Basic Attack"
@@ -1032,7 +1122,7 @@ class SWTORLogParser:
         # or concatenate intra-encounter timeline points across cumulative combat time
         cum_time = 0.0
         timeline_pts: List[Tuple[float, float]] = []
-        for e in self.encounters:
+        for e in sess_encs:
             if e.dps_timeline:
                 for t_rel, val_dps in e.dps_timeline:
                     timeline_pts.append((round(cum_time + t_rel, 1), round(val_dps, 1)))
@@ -1116,12 +1206,14 @@ class SWTORLogParser:
         for c in enc.combatants.values():
             if not (c.is_player or c.is_companion):
                 continue
-            dps = c.damage_dealt / dur
-            edps = c.effective_damage_dealt / dur
-            hps = c.healing_done / dur
-            ehps = c.effective_healing_done / dur
-            dtps = c.damage_taken / dur
-            apm = (c.actions / dur) * 60.0
+            c_dur = max(c.active_combat_seconds, 1.0) if (is_session_view and c.active_combat_seconds > 0) else dur
+            c_fights = c.fight_count if (is_session_view and c.fight_count > 0) else (sess_summary["encounter_count"] if is_session_view else 1)
+            dps = c.damage_dealt / c_dur
+            edps = c.effective_damage_dealt / c_dur
+            hps = c.healing_done / c_dur
+            ehps = c.effective_healing_done / c_dur
+            dtps = c.damage_taken / c_dur
+            apm = (c.actions / c_dur) * 60.0
             total_attempts = c.hits + c.misses
             acc = (c.hits / total_attempts * 100.0) if total_attempts > 0 else 100.0
             crit_pct = (c.crits / c.hits * 100.0) if c.hits > 0 else 0.0
@@ -1146,7 +1238,7 @@ class SWTORLogParser:
                     "id": a.ability_id,
                     "type": a.damage_type,
                     "total_damage": a.total_damage,
-                    "dps": round(a.total_damage / dur, 1),
+                    "dps": round(a.total_damage / c_dur, 1),
                     "pct": round(pct, 1),
                     "hits": a.hits,
                     "crits": a.crits,
@@ -1155,7 +1247,7 @@ class SWTORLogParser:
                     "avg_hit": round(a.avg_hit, 0),
                     "max_hit": a.max_hit,
                     "total_heal": a.total_heal,
-                    "hps": round(a.total_heal / dur, 1),
+                    "hps": round(a.total_heal / c_dur, 1),
                 })
 
             entry = {
@@ -1164,6 +1256,9 @@ class SWTORLogParser:
                 "is_companion": c.is_companion,
                 "is_local": c.name == self.local_player_name,
                 "discipline": c.discipline,
+                "fight_count": c_fights,
+                "active_combat_seconds": round(c_dur, 1),
+                "active_duration": self._format_hms(c_dur),
                 "damage": c.damage_dealt,
                 "dps": round(dps, 1),
                 "edps": round(edps, 1),
@@ -1186,18 +1281,23 @@ class SWTORLogParser:
             if c.name == self.local_player_name:
                 local_stats = entry
 
-        combatants_list.sort(key=lambda x: x["damage"], reverse=True)
+        # In Session Mode, sort combatants by DPS (or damage in single-fight mode) so teammates
+        # from earlier Flashpoints don't outrank current Flashpoint teammates who have higher DPS
+        combatants_list.sort(key=lambda x: (x["dps"], x["damage"]), reverse=True)
         if not local_stats and combatants_list:
             local_stats = combatants_list[0]
 
         fight_markers = []
         if is_session_view:
+            sess_encs = self._get_session_encounters()
             sess_label = self.session_name.strip() or self.current_area
-            title = f"{sess_label} ({len(self.encounters)} fights)"
+            title = f"{sess_label} ({len(sess_encs)} fights)"
             # Never show a Boss HP bar in Session mode (fixes F2 stale 0% red HP bar)
             target_hp_info = None
             cum_t = 0.0
             for idx, e_item in enumerate(self.encounters):
+                if self.current_area_only and e_item not in sess_encs:
+                    continue
                 dur_e = e_item.duration_seconds
                 p_c = e_item.combatants.get(self.local_player_name)
                 if not p_c and e_item.combatants:
@@ -1228,6 +1328,8 @@ class SWTORLogParser:
         return {
             "has_encounter": True,
             "is_session_view": is_session_view,
+            "current_area_only": self.current_area_only,
+            "area_name": self.current_area,
             "can_undo_reset": bool(self._undo_encounters),
             "encounter_id": enc.encounter_id,
             "in_combat": enc.in_combat,

@@ -193,6 +193,10 @@ class OverlayBridgeAPI:
         with self._lock:
             return self._parser.undo_reset()
 
+    def set_current_area_only(self, enabled: bool) -> bool:
+        with self._lock:
+            return self._parser.set_current_area_only(enabled)
+
     def _get_hwnd_and_scale(self) -> tuple[int, float]:
         win = self._get_window()
         if not win or not getattr(win, "native", None):
@@ -711,6 +715,13 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
         with lock:
             ok = parser.undo_reset()
         return JSONResponse({"ok": ok})
+
+    @app.post("/api/set_area_only")
+    def api_set_area_only(payload: dict):
+        enabled = bool(payload.get("enabled", False))
+        with lock:
+            state = parser.set_current_area_only(enabled)
+        return JSONResponse({"ok": True, "current_area_only": state})
 
     @app.get("/api/discover_dirs")
     def api_discover_dirs():
