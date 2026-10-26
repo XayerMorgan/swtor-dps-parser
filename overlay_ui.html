@@ -145,6 +145,41 @@
     padding: 1px 5px;
     white-space: nowrap;
     flex-shrink: 0;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .header-version:hover {
+    background: rgba(0, 212, 255, 0.24);
+    border-color: var(--accent-cyan);
+  }
+
+  .header-version.update-ready {
+    color: #0b0f19;
+    background: var(--accent-gold);
+    border-color: #ffe066;
+    box-shadow: 0 0 10px rgba(255, 184, 0, 0.55);
+  }
+
+  .update-banner {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 10px;
+    background: linear-gradient(90deg, rgba(255, 184, 0, 0.22), rgba(0, 230, 118, 0.14));
+    border-bottom: 1px solid rgba(255, 184, 0, 0.55);
+    font-size: 11px;
+    color: var(--text-primary);
+    flex-shrink: 0;
+  }
+
+  .update-banner.visible {
+    display: flex;
+  }
+
+  body.compact-mode .update-banner {
+    display: none !important;
   }
 
   @media (min-width: 680px) {
@@ -1011,7 +1046,7 @@
         <span id="statusDot" class="status-dot ready"></span>
         <span id="statusText">LIVE</span>
       </span>
-      <span id="headerVersion" class="header-version" title="App Build Version (Ensure all teammates run this exact version)">v2.4.0</span>
+      <span id="headerVersion" class="header-version" onclick="onVersionBadgeClick()" title="Click to check GitHub for newer versions">v2.5.0</span>
       <span id="headerClock" class="header-clock" title="Local 24-Hour Clock (Matches SWTOR Combat Log Timestamps)">00:00:00</span>
       <span class="brand-title">SWTOR Holocron DPS</span>
     </div>
@@ -1025,6 +1060,16 @@
       <div class="header-divider" aria-hidden="true"></div>
       <button id="btnUndoReset" class="btn btn-undo" style="display: none;" onclick="undoResetEncounters()" title="Restore the session encounters cleared by Reset">↩ Undo</button>
       <button id="btnReset" class="btn btn-danger" onclick="requestResetEncounters()" title="Clear Session & Encounter History (Requires Confirmation)">↺ Reset</button>
+    </div>
+  </div>
+
+  <!-- GitHub Update Notification Banner -->
+  <div id="updateBanner" class="update-banner">
+    <span id="updateBannerText">🔔 New Version Available on GitHub!</span>
+    <div style="display: flex; gap: 4px; flex-shrink: 0;">
+      <button id="btnSelfUpdate" class="btn btn-xs active" onclick="triggerSelfUpdate()" title="Download the latest SWTOR_DPS_Parser.exe from GitHub and restart automatically">⬇ Auto-Update &amp; Restart</button>
+      <button class="btn btn-xs" onclick="openGithubRepo()" title="Open GitHub Repository in Browser">🌐 GitHub</button>
+      <button class="btn btn-xs" onclick="dismissUpdateBanner()" title="Dismiss update banner">×</button>
     </div>
   </div>
 
@@ -1341,6 +1386,8 @@
   let resetConfirmTimer = null;
   let resetConfirmPending = false;
   let undoBannerExpireAt = 0;
+  let updateBannerDismissed = false;
+  let checkingUpdatesNow = false;
   let chartInteractiveState = { timeline: [], markers: [], maxVal: 100, totalSecs: 0 };
 
   function fmtNum(n) {
@@ -1597,9 +1644,30 @@
 
   function renderSnapshot(snap) {
     lastSnapshot = snap;
-    if (snap.app_version) {
-      const vEl = document.getElementById('headerVersion');
-      if (vEl && vEl.textContent !== snap.app_version) vEl.textContent = snap.app_version;
+    const vEl = document.getElementById('headerVersion');
+    const updBanner = document.getElementById('updateBanner');
+    const updBannerTxt = document.getElementById('updateBannerText');
+    if (vEl && !checkingUpdatesNow) {
+      if (snap.update_available && snap.remote_version) {
+        vEl.className = 'header-version update-ready';
+        vEl.textContent = `⬆ ${snap.remote_version}`;
+        vEl.title = `Update Available! GitHub has ${snap.remote_version} (You are on ${snap.app_version || 'v2.5.0'}). Click to update!`;
+      } else {
+        vEl.className = 'header-version';
+        const verTxt = snap.app_version || 'v2.5.0';
+        vEl.textContent = snap.remote_version ? `${verTxt} ✓` : verTxt;
+        vEl.title = snap.remote_version
+          ? `Up to date with GitHub (${verTxt}, checked ${snap.last_update_check || 'recently'}) — Click to re-check`
+          : `Version ${verTxt} — Click to check GitHub for updates`;
+      }
+    }
+    if (updBanner && updBannerTxt) {
+      if (snap.update_available && snap.remote_version && !updateBannerDismissed) {
+        updBanner.classList.add('visible');
+        updBannerTxt.innerHTML = `🔔 <strong>Update ${escHtml(snap.remote_version)} Available on GitHub!</strong> <span style="color:var(--text-muted);">(Current: ${escHtml(snap.app_version || 'v2.5.0')})</span>`;
+      } else if (!snap.update_available) {
+        updBanner.classList.remove('visible');
+      }
     }
     updateBaselineBanner(snap);
 
@@ -2912,6 +2980,86 @@
     }
   }
 
+  async function onVersionBadgeClick() {
+    if (lastSnapshot && lastSnapshot.update_available) {
+      updateBannerDismissed = false;
+      const updBanner = document.getElementById('updateBanner');
+      if (updBanner) updBanner.classList.add('visible');
+      return;
+    }
+    const vEl = document.getElementById('headerVersion');
+    checkingUpdatesNow = true;
+    if (vEl) vEl.textContent = '🔄 Check...';
+    try {
+      let res = null;
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.check_for_updates) {
+        res = await window.pywebview.api.check_for_updates();
+      } else {
+        const resp = await fetch('/api/check_updates', { method: 'POST' });
+        if (resp.ok) res = await resp.json();
+      }
+      checkingUpdatesNow = false;
+      if (res && res.update_available) {
+        updateBannerDismissed = false;
+      }
+      fetchSnapshot();
+    } catch (e) {
+      checkingUpdatesNow = false;
+      fetchSnapshot();
+    }
+  }
+
+  async function openGithubRepo() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_github_repo) {
+      await window.pywebview.api.open_github_repo();
+    } else {
+      await fetch('/api/open_github', { method: 'POST' });
+    }
+  }
+
+  function dismissUpdateBanner() {
+    updateBannerDismissed = true;
+    const updBanner = document.getElementById('updateBanner');
+    if (updBanner) updBanner.classList.remove('visible');
+  }
+
+  async function triggerSelfUpdate() {
+    const btn = document.getElementById('btnSelfUpdate');
+    const txt = document.getElementById('updateBannerText');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ Downloading...';
+    }
+    if (txt) {
+      txt.innerHTML = '⏳ <strong>Downloading latest SWTOR_DPS_Parser.exe from GitHub...</strong>';
+    }
+    try {
+      let res = null;
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.apply_self_update) {
+        res = await window.pywebview.api.apply_self_update();
+      } else {
+        const resp = await fetch('/api/self_update', { method: 'POST' });
+        if (resp.ok) res = await resp.json();
+      }
+      if (res && res.ok) {
+        if (txt) txt.innerHTML = `✓ <strong>${escHtml(res.message || 'Update complete! Restarting...')}</strong>`;
+        if (btn) btn.textContent = '✓ Restarting...';
+      } else {
+        const err = (res && res.error) ? res.error : 'Update failed';
+        if (txt) txt.innerHTML = `⚠ <strong>Auto-update error:</strong> ${escHtml(err)} — Click 🌐 GitHub to download manually.`;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '⬇ Retry Update';
+        }
+      }
+    } catch (e) {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '⬇ Retry Update';
+      }
+    }
+  }
+
   function updateHeaderClock() {
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
@@ -2920,8 +3068,11 @@
     const time24 = `${hh}:${mm}:${ss}`;
     const el = document.getElementById('headerClock');
     if (el) el.textContent = time24;
-    const ver = (lastSnapshot && lastSnapshot.app_version) ? lastSnapshot.app_version : 'v2.4.0';
-    document.title = `SWTOR Holocron DPS ${ver}  •  ${time24}`;
+    const ver = (lastSnapshot && lastSnapshot.app_version) ? lastSnapshot.app_version : 'v2.5.0';
+    const upd = (lastSnapshot && lastSnapshot.update_available && lastSnapshot.remote_version)
+      ? ` (⬆ Update ${lastSnapshot.remote_version} Available!)`
+      : '';
+    document.title = `SWTOR Holocron DPS ${ver}${upd}  •  ${time24}`;
   }
 
   setInterval(updateHeaderClock, 1000);

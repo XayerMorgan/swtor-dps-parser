@@ -16,7 +16,19 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
-APP_VERSION = "v2.4.0"
+APP_VERSION = "v2.5.0"
+GITHUB_REPO_URL = "https://github.com/XayerMorgan/swtor-dps-parser"
+GITHUB_RAW_VERSION_URL = "https://raw.githubusercontent.com/XayerMorgan/swtor-dps-parser/main/swtor_parser.py"
+GITHUB_RAW_EXE_URL = "https://github.com/XayerMorgan/swtor-dps-parser/raw/main/SWTOR_DPS_Parser.exe"
+
+
+def parse_semver(ver_str: str) -> Tuple[int, int, int]:
+    """Parses 'v2.5.0' or '2.5.0' into an integer tuple (2, 5, 0) for version comparison."""
+    clean = re.sub(r"[^0-9.]", "", str(ver_str or ""))
+    parts = [int(p) for p in clean.split(".") if p.isdigit()]
+    while len(parts) < 3:
+        parts.append(0)
+    return (parts[0], parts[1], parts[2])
 
 
 # Known SWTOR Action/Event IDs
@@ -289,6 +301,50 @@ class SWTORLogParser:
         self._persist_history: bool = load_history
         if load_history:
             self._load_references_from_disk()
+
+        self.remote_version: Optional[str] = None
+        self.update_available: bool = False
+        self.last_update_check: Optional[str] = None
+
+    def check_github_update(self) -> dict:
+        """
+        Checks GitHub (main branch swtor_parser.py) for APP_VERSION to signal when a
+        newer version has been published. Uses a 4-second timeout and no-cache query
+        so it never blocks the UI and bypasses stale CDN cache.
+        """
+        import urllib.request
+
+        url = f"{GITHUB_RAW_VERSION_URL}?t={int(time.time())}"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": f"SWTOR-Holocron-DPS/{APP_VERSION}",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
+                body = resp.read(8192).decode("utf-8", errors="ignore")
+            m = re.search(r'APP_VERSION\s*=\s*["\'](v?\d+\.\d+(?:\.\d+)?)["\']', body)
+            if m:
+                rem_ver = m.group(1).strip()
+                if not rem_ver.startswith("v"):
+                    rem_ver = "v" + rem_ver
+                self.remote_version = rem_ver
+                self.update_available = parse_semver(rem_ver) > parse_semver(APP_VERSION)
+                self.last_update_check = datetime.now().strftime("%H:%M:%S")
+                return {
+                    "ok": True,
+                    "local_version": APP_VERSION,
+                    "remote_version": self.remote_version,
+                    "update_available": self.update_available,
+                    "checked_at": self.last_update_check,
+                    "repo_url": GITHUB_REPO_URL,
+                }
+            return {"ok": False, "error": "Version string not found in remote file", "local_version": APP_VERSION}
+        except Exception as e:
+            return {"ok": False, "error": str(e), "local_version": APP_VERSION}
 
     @classmethod
     def _load_saved_log_dir(cls) -> Optional[str]:
@@ -1184,6 +1240,9 @@ class SWTORLogParser:
         if not enc:
             return {
                 "app_version": APP_VERSION,
+                "remote_version": self.remote_version,
+                "update_available": self.update_available,
+                "last_update_check": self.last_update_check,
                 "has_encounter": False,
                 "is_session_view": is_session_view,
                 "current_area_only": self.current_area_only,
@@ -1333,6 +1392,9 @@ class SWTORLogParser:
 
         return {
             "app_version": APP_VERSION,
+            "remote_version": self.remote_version,
+            "update_available": self.update_available,
+            "last_update_check": self.last_update_check,
             "has_encounter": True,
             "is_session_view": is_session_view,
             "current_area_only": self.current_area_only,

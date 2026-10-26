@@ -229,6 +229,12 @@ class TestSWTORParser(unittest.TestCase):
         self.assertIn("Drocinth", combatant_names)
         self.assertNotIn("Rhykan", combatant_names)
 
+        # Verify semver comparison for GitHub update detection
+        from swtor_parser import APP_VERSION, parse_semver
+        self.assertEqual(parse_semver("v2.5.0"), (2, 5, 0))
+        self.assertGreater(parse_semver("v2.6.0"), parse_semver(APP_VERSION))
+        self.assertGreater(parse_semver("v2.5.1"), parse_semver("v2.5.0"))
+
 
 if __name__ == "__main__":
     unittest.main()

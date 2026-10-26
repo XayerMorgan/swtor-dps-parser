@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from swtor_parser import APP_VERSION, SWTORLogParser
+from swtor_parser import APP_VERSION, GITHUB_RAW_EXE_URL, GITHUB_REPO_URL, SWTORLogParser
 from swtor_simulator import RAID_MEMBERS, SAMPLE_ABILITIES, generate_instant_demo_lines
 
 
@@ -443,15 +443,31 @@ class OverlayBridgeAPI:
                     hwnd, _ = self._get_hwnd_and_scale()
                     if hwnd:
                         now_str = datetime.now().strftime("%H:%M:%S")
+                        upd_tag = (
+                            f" (\u2b06 Update {self._parser.remote_version} Available!)"
+                            if self._parser.update_available and self._parser.remote_version
+                            else ""
+                        )
                         ctypes.windll.user32.SetWindowTextW(
-                            hwnd, f"SWTOR Holocron DPS {APP_VERSION}  \u2022  {now_str}"
+                            hwnd, f"SWTOR Holocron DPS {APP_VERSION}{upd_tag}  \u2022  {now_str}"
                         )
                 except Exception:
                     pass
                 time.sleep(1.0)
 
+        def _update_check_worker() -> None:
+            time.sleep(2.0)
+            while True:
+                try:
+                    self._parser.check_github_update()
+                except Exception:
+                    pass
+                time.sleep(600.0)
+
         t = threading.Thread(target=_clock_worker, daemon=True)
         t.start()
+        u = threading.Thread(target=_update_check_worker, daemon=True)
+        u.start()
 
     def choose_log_dir(self) -> str:
         """
@@ -671,6 +687,83 @@ class OverlayBridgeAPI:
             res["clipboard_ok"] = copied
         return res
 
+    def check_for_updates(self) -> dict:
+        """Checks GitHub main branch for a newer APP_VERSION."""
+        return self._parser.check_github_update()
+
+    def open_github_repo(self) -> bool:
+        """Opens the GitHub repository in the user's default browser."""
+        webbrowser.open(GITHUB_REPO_URL)
+        return True
+
+    def apply_self_update(self) -> dict:
+        """
+        Downloads the latest SWTOR_DPS_Parser.exe from GitHub main branch (when running
+        as a standalone .exe), atomically swaps the executable on disk, and relaunches it.
+        When running from a git source clone, runs 'git pull origin main'.
+        """
+        import subprocess
+        import urllib.request
+
+        if getattr(sys, "frozen", False):
+            exe_path = Path(sys.executable).resolve()
+            tmp_path = exe_path.with_name("SWTOR_DPS_Parser_update.tmp")
+            old_path = exe_path.with_name("SWTOR_DPS_Parser_prev.old")
+            try:
+                url = f"{GITHUB_RAW_EXE_URL}?t={int(time.time())}"
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        "User-Agent": f"SWTOR-Holocron-DPS/{APP_VERSION}",
+                        "Cache-Control": "no-cache",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=45.0) as resp:
+                    data = resp.read()
+                if len(data) < 5_000_000 or not data.startswith(b"MZ"):
+                    return {"ok": False, "error": "Downloaded file is not a valid Windows executable."}
+                tmp_path.write_bytes(data)
+                if old_path.exists():
+                    try:
+                        old_path.unlink()
+                    except Exception:
+                        old_path = exe_path.with_name(f"SWTOR_DPS_Parser_prev_{int(time.time())}.old")
+                os.replace(exe_path, old_path)
+                os.replace(tmp_path, exe_path)
+
+                def _relaunch_and_exit() -> None:
+                    time.sleep(0.4)
+                    try:
+                        subprocess.Popen([str(exe_path)], cwd=str(exe_path.parent))
+                    except Exception:
+                        pass
+                    os._exit(0)
+
+                threading.Thread(target=_relaunch_and_exit, daemon=True).start()
+                return {"ok": True, "mode": "exe_restart", "message": "Update downloaded! Restarting into new version..."}
+            except Exception as e:
+                if tmp_path.exists():
+                    try:
+                        tmp_path.unlink()
+                    except Exception:
+                        pass
+                return {"ok": False, "error": str(e)}
+        else:
+            repo_dir = Path(__file__).resolve().parent
+            try:
+                proc = subprocess.run(
+                    ["git", "pull", "origin", "main"],
+                    cwd=str(repo_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=15.0,
+                )
+                if proc.returncode == 0:
+                    return {"ok": True, "mode": "git_pull", "message": "Git pull succeeded! Restart app to load new version."}
+                return {"ok": False, "error": proc.stderr.strip() or proc.stdout.strip() or "git pull failed"}
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
+
 
 def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSimulationWorker, port: int = 8765) -> None:
     """Runs a lightweight local FastAPI/Uvicorn server so the UI can also be tested in any browser."""
@@ -848,6 +941,22 @@ def run_browser_server(parser: SWTORLogParser, lock: threading.Lock, sim: LiveSi
                 idx = enc_idx if (enc_idx >= 0 or enc_idx == -2) else None
                 res = parser.format_chat_summary(idx, mode=mode, combatant_name=combatant_name)
         return JSONResponse(res)
+
+    @app.post("/api/check_updates")
+    def api_check_updates():
+        return JSONResponse(parser.check_github_update())
+
+    @app.post("/api/open_github")
+    def api_open_github():
+        webbrowser.open(GITHUB_REPO_URL)
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/self_update")
+    def api_self_update():
+        api_helper = OverlayBridgeAPI(parser, lock, sim)
+        return JSONResponse(api_helper.apply_self_update())
+
+    threading.Thread(target=lambda: (time.sleep(1.5), parser.check_github_update()), daemon=True).start()
 
     print(f"SWTOR Holocron DPS Web UI running at http://127.0.0.1:{port}")
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
