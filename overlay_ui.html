@@ -134,6 +134,19 @@
     flex-shrink: 0;
   }
 
+  .header-version {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    background: rgba(0, 212, 255, 0.12);
+    border: 1px solid rgba(0, 212, 255, 0.35);
+    border-radius: 4px;
+    padding: 1px 5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
   @media (min-width: 680px) {
     .brand-title {
       display: inline;
@@ -998,6 +1011,7 @@
         <span id="statusDot" class="status-dot ready"></span>
         <span id="statusText">LIVE</span>
       </span>
+      <span id="headerVersion" class="header-version" title="App Build Version (Ensure all teammates run this exact version)">v2.4.0</span>
       <span id="headerClock" class="header-clock" title="Local 24-Hour Clock (Matches SWTOR Combat Log Timestamps)">00:00:00</span>
       <span class="brand-title">SWTOR Holocron DPS</span>
     </div>
@@ -1583,6 +1597,10 @@
 
   function renderSnapshot(snap) {
     lastSnapshot = snap;
+    if (snap.app_version) {
+      const vEl = document.getElementById('headerVersion');
+      if (vEl && vEl.textContent !== snap.app_version) vEl.textContent = snap.app_version;
+    }
     updateBaselineBanner(snap);
 
     // Status pill with text + color (F10 WCAG 1.4.1)
@@ -2902,7 +2920,8 @@
     const time24 = `${hh}:${mm}:${ss}`;
     const el = document.getElementById('headerClock');
     if (el) el.textContent = time24;
-    document.title = `SWTOR Holocron DPS Overlay  •  ${time24}`;
+    const ver = (lastSnapshot && lastSnapshot.app_version) ? lastSnapshot.app_version : 'v2.4.0';
+    document.title = `SWTOR Holocron DPS ${ver}  •  ${time24}`;
   }
 
   setInterval(updateHeaderClock, 1000);

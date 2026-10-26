@@ -16,6 +16,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
+APP_VERSION = "v2.4.0"
+
+
 # Known SWTOR Action/Event IDs
 ID_EVENT = "836045448945472"
 ID_SPEND = "836045448945473"
@@ -1180,8 +1183,11 @@ class SWTORLogParser:
 
         if not enc:
             return {
+                "app_version": APP_VERSION,
                 "has_encounter": False,
                 "is_session_view": is_session_view,
+                "current_area_only": self.current_area_only,
+                "area_name": self.current_area,
                 "in_combat": False,
                 "can_undo_reset": bool(self._undo_encounters),
                 "log_dir": str(self.log_dir),
@@ -1326,6 +1332,7 @@ class SWTORLogParser:
                     }
 
         return {
+            "app_version": APP_VERSION,
             "has_encounter": True,
             "is_session_view": is_session_view,
             "current_area_only": self.current_area_only,

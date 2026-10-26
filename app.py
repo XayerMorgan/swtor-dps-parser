@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from swtor_parser import SWTORLogParser
+from swtor_parser import APP_VERSION, SWTORLogParser
 from swtor_simulator import RAID_MEMBERS, SAMPLE_ABILITIES, generate_instant_demo_lines
 
 
@@ -444,7 +444,7 @@ class OverlayBridgeAPI:
                     if hwnd:
                         now_str = datetime.now().strftime("%H:%M:%S")
                         ctypes.windll.user32.SetWindowTextW(
-                            hwnd, f"SWTOR Holocron DPS Overlay  \u2022  {now_str}"
+                            hwnd, f"SWTOR Holocron DPS {APP_VERSION}  \u2022  {now_str}"
                         )
                 except Exception:
                     pass
@@ -892,7 +892,7 @@ def main() -> None:
 
     from datetime import datetime as _dt
     window = webview.create_window(
-        title=f"SWTOR Holocron DPS Overlay  \u2022  {_dt.now().strftime('%H:%M:%S')}",
+        title=f"SWTOR Holocron DPS {APP_VERSION}  \u2022  {_dt.now().strftime('%H:%M:%S')}",
         url=html_file.as_uri(),
         js_api=api,
         width=520,
