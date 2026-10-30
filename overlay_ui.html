@@ -634,6 +634,121 @@
     text-align: right;
   }
 
+  /* Expandable Group Player Drawer (Skills + Per-Fight DPS Runs) */
+  .group-player-row {
+    cursor: pointer;
+  }
+
+  .group-player-row.expanded {
+    border-color: var(--accent-cyan);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    background: rgba(18, 28, 48, 0.92);
+  }
+
+  .expand-chevron {
+    display: inline-block;
+    width: 11px;
+    font-size: 10px;
+    color: var(--accent-cyan);
+    text-align: center;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+  }
+
+  .group-player-drawer {
+    background: rgba(8, 13, 24, 0.94);
+    border: 1px solid rgba(0, 212, 255, 0.32);
+    border-top: none;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    padding: 7px 8px;
+    margin-top: -3px;
+    margin-bottom: 5px;
+  }
+
+  .group-run-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+
+  .group-run-kpi {
+    background: rgba(16, 24, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    padding: 3px 5px;
+    min-width: 0;
+  }
+
+  .group-run-kpi .gr-lbl {
+    font-size: 8.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.3px;
+  }
+
+  .group-run-kpi .gr-val {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .drawer-section-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--accent-cyan);
+    margin: 5px 0 3px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.16);
+  }
+
+  .sub-meter-row {
+    position: relative;
+    background: rgba(14, 21, 36, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6px;
+    margin-bottom: 2px;
+    overflow: hidden;
+    font-size: 10.5px;
+  }
+
+  .sub-meter-row.clickable-run {
+    cursor: pointer;
+  }
+
+  .sub-meter-row.clickable-run:hover {
+    border-color: var(--accent-gold);
+  }
+
+  .sub-meter-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, rgba(0, 212, 255, 0.24), rgba(0, 212, 255, 0.06));
+    z-index: 0;
+  }
+
+  .sub-meter-fill.run-fill {
+    background: linear-gradient(90deg, rgba(255, 184, 0, 0.22), rgba(255, 184, 0, 0.05));
+  }
+
   /* Sparkline Graph Container */
   .chart-box {
     position: relative;
@@ -1046,7 +1161,7 @@
         <span id="statusDot" class="status-dot ready"></span>
         <span id="statusText">LIVE</span>
       </span>
-      <span id="headerVersion" class="header-version" onclick="onVersionBadgeClick()" title="Click to check GitHub for newer versions">v2.5.0</span>
+      <span id="headerVersion" class="header-version" onclick="onVersionBadgeClick()" title="Click to check GitHub for newer versions">v2.6.0</span>
       <span id="headerClock" class="header-clock" title="Local 24-Hour Clock (Matches SWTOR Combat Log Timestamps)">00:00:00</span>
       <span class="brand-title">SWTOR Holocron DPS</span>
     </div>
@@ -1178,6 +1293,7 @@
       <div id="groupSummaryBar" class="team-summary-bar" style="display: none; flex-wrap: wrap; gap: 6px;">
         <div id="groupSummaryText" class="team-summary-stats">👥 Team Total: 0 DPS</div>
         <div style="display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap;">
+          <button id="btnExpandAllGroup" class="btn btn-xs" onclick="toggleAllGroupPlayers()" title="Expand or collapse all players' specific skills and per-fight DPS runs">⊞ Expand All</button>
           <button id="btnAreaOnly" class="btn btn-xs" onclick="toggleAreaOnly()" title="Filter Session Mode to only encounters inside your current Flashpoint / Operation / Planet (excludes earlier runs in the same combat_*.txt file)">📍 Zone Only</button>
           <button id="btnGroupTabCopyTeam" class="btn btn-xs btn-chat" onclick="copyChatSummary('group')" title="Copy Whole-Team Group DPS Leaderboard (#1..#N) to Windows Clipboard for SWTOR Party/Ops Chat (Ctrl+V)">👥 Copy Team DPS</button>
           <button class="btn btn-xs" onclick="copyChatSummary('personal')" title="Copy Only Your Personal DPS Breakdown">📋 My DPS</button>
@@ -1205,7 +1321,7 @@
         </ul>
       </div>
       <div class="meter-col-header">
-        <span># · Combatant · Discipline</span>
+        <span>▸ # · Combatant · Discipline (Click Row to Expand Skills &amp; Run)</span>
         <span>Crit % · APM · Fights · Total Dmg · DPS</span>
       </div>
       <div id="groupList" class="meter-list"></div>
@@ -1388,6 +1504,7 @@
   let undoBannerExpireAt = 0;
   let updateBannerDismissed = false;
   let checkingUpdatesNow = false;
+  let expandedGroupPlayers = new Set();
   let chartInteractiveState = { timeline: [], markers: [], maxVal: 100, totalSecs: 0 };
 
   function fmtNum(n) {
@@ -1919,6 +2036,13 @@
     }
 
     const maxPlayerDmg = combatants.length > 0 ? Math.max(...combatants.map(c => c.damage), 1) : 1;
+    const btnExpAll = document.getElementById('btnExpandAllGroup');
+    if (btnExpAll) {
+      const allExpanded = combatants.length > 0 && combatants.every(c => expandedGroupPlayers.has(c.name));
+      btnExpAll.classList.toggle('active', allExpanded);
+      btnExpAll.textContent = allExpanded ? '⊟ Collapse All' : '⊞ Expand All';
+    }
+
     let groupHtml = '';
     combatants.forEach((c, idx) => {
       const barWidth = Math.max(2, (c.damage / maxPlayerDmg) * 100);
@@ -1927,10 +2051,107 @@
       const fightBadge = (snap.is_session_view && (c.fight_count || 0) > 0)
         ? ` · ${c.fight_count}f`
         : '';
+      const isExp = expandedGroupPlayers.has(c.name);
+      const chev = isExp ? '▾' : '▸';
+
+      let drawerHtml = '';
+      if (isExp) {
+        const cAbils = (c.abilities || []).filter(a => (a.total_damage || 0) > 0 || (a.misses || 0) > 0);
+        const maxCAbilDmg = cAbils.length > 0 ? Math.max(...cAbils.map(a => a.total_damage || 0), 1) : 1;
+        let cAbilRows = '';
+        cAbils.forEach((a, aIdx) => {
+          const aBarW = Math.max(2, ((a.total_damage || 0) / maxCAbilDmg) * 100);
+          cAbilRows += `
+            <div class="sub-meter-row" title="${escHtml(a.name)} — Share: ${a.pct.toFixed(1)}% | Hits: ${a.hits} | Crits: ${a.crits} (${a.crit_pct.toFixed(1)}%) | Max Hit: ${fmtNum(a.max_hit)} | Avg Hit: ${fmtNum(a.avg_hit)}">
+              <div class="sub-meter-fill" style="width: ${aBarW.toFixed(1)}%;"></div>
+              <div class="meter-left">
+                <span class="rank-num">${aIdx + 1}.</span>
+                <span class="meter-name" style="font-size: 10.5px;">${escHtml(a.name)}</span>
+                <span class="meter-badge">${a.pct.toFixed(1)}%</span>
+              </div>
+              <div class="meter-right" style="font-size: 10px; gap: 7px;">
+                <span class="stat-muted">${a.hits}h · ${a.crit_pct.toFixed(0)}%c · max ${fmtNum(a.max_hit)}</span>
+                <span class="stat-muted">${fmtNum(a.total_damage)}</span>
+                <span class="stat-highlight" style="min-width: 48px;">${fmtNum(a.dps)}/s</span>
+              </div>
+            </div>`;
+        });
+        if (!cAbilRows) {
+          cAbilRows = `<div style="font-size: 10.5px; color: var(--text-muted); padding: 3px 2px;">No damaging skills recorded for ${escHtml(c.name)}.</div>`;
+        }
+
+        const cRuns = Array.isArray(c.fight_runs) ? c.fight_runs : [];
+        let runsSection = '';
+        if (cRuns.length > 0) {
+          const maxRunDps = Math.max(...cRuns.map(r => r.dps || 0), 1);
+          let runRows = '';
+          cRuns.slice().reverse().forEach(r => {
+            const rBarW = Math.max(2, ((r.dps || 0) / maxRunDps) * 100);
+            runRows += `
+              <div class="sub-meter-row clickable-run" onclick="setEncounterMode(${r.index})" title="Click to switch view to Fight #${r.id}: ${escHtml(r.title)} (${r.duration})">
+                <div class="sub-meter-fill run-fill" style="width: ${rBarW.toFixed(1)}%;"></div>
+                <div class="meter-left">
+                  <span class="rank-num">#${r.id}</span>
+                  <span class="meter-name" style="font-size: 10.5px;">${escHtml(r.title)}</span>
+                  <span class="meter-badge">${r.duration}</span>
+                </div>
+                <div class="meter-right" style="font-size: 10px; gap: 7px;">
+                  <span class="stat-muted">${r.crit_pct.toFixed(0)}% crit</span>
+                  <span class="stat-muted">${fmtNum(r.damage)}</span>
+                  <span class="stat-highlight" style="min-width: 48px;">${fmtNum(r.dps)}/s</span>
+                </div>
+              </div>`;
+          });
+          const peakTxt = c.peak_fight_dps > 0
+            ? `Peak: ${fmtNum(c.peak_fight_dps)}/s (${escHtml((c.peak_fight_title || '').slice(0, 18))})`
+            : '';
+          runsSection = `
+            <div class="drawer-section-title" style="color: var(--accent-gold); border-bottom-color: rgba(255, 184, 0, 0.2); margin-top: 6px;">
+              <span>🏃 DPS Runs by Fight (${cRuns.length}) — Click Any Fight to Inspect</span>
+              <span>${peakTxt}</span>
+            </div>
+            <div style="max-height: 135px; overflow-y: auto; padding-right: 2px;">
+              ${runRows}
+            </div>`;
+        }
+
+        const maxAbilShort = c.max_hit_ability ? ` (${escHtml(c.max_hit_ability.slice(0, 12))})` : '';
+        drawerHtml = `
+          <div class="group-player-drawer">
+            <div class="group-run-kpis">
+              <div class="group-run-kpi">
+                <div class="gr-lbl">Active Run</div>
+                <div class="gr-val" style="color: var(--accent-cyan);">${c.fight_count || 1}f · ${c.active_duration || snap.duration}</div>
+              </div>
+              <div class="group-run-kpi" title="Largest Single Hit: ${fmtNum(c.max_hit || 0)} ${escHtml(c.max_hit_ability || '')}">
+                <div class="gr-lbl">Max Hit</div>
+                <div class="gr-val" style="color: var(--accent-gold);">${fmtNum(c.max_hit || 0)}${maxAbilShort}</div>
+              </div>
+              <div class="group-run-kpi">
+                <div class="gr-lbl">Acc / Hits</div>
+                <div class="gr-val">${(c.accuracy_pct || 100).toFixed(1)}% · ${fmtNum(c.hits || 0)}h</div>
+              </div>
+              <div class="group-run-kpi">
+                <div class="gr-lbl">Heal / Taken</div>
+                <div class="gr-val"><span style="color:var(--accent-emerald);">${fmtNum(c.hps || 0)}</span> / <span style="color:#ffb3bc;">${fmtNum(c.dtps || 0)}</span></div>
+              </div>
+            </div>
+            <div class="drawer-section-title">
+              <span>⚔️ ${escHtml(c.name)}'s Specific Skills (${cAbils.length})</span>
+              <span>Hits · Crit · Max · Total · DPS</span>
+            </div>
+            <div>
+              ${cAbilRows}
+            </div>
+            ${runsSection}
+          </div>`;
+      }
+
       groupHtml += `
-        <div class="meter-row">
+        <div class="meter-row group-player-row ${isExp ? 'expanded' : ''}" onclick="toggleGroupPlayerByIdx(${idx})" title="Click to ${isExp ? 'collapse' : 'expand'} ${escHtml(c.name)}'s specific skills and DPS runs">
           <div class="${fillClass}" style="width: ${barWidth.toFixed(1)}%;"></div>
           <div class="meter-left">
+            <span class="expand-chevron">${chev}</span>
             <span class="rank-num">${idx + 1}.</span>
             <span class="meter-name">${escHtml(c.name)}</span>
             ${c.discipline ? `<span class="meter-badge">${escHtml(c.discipline)}</span>` : ''}
@@ -1940,9 +2161,10 @@
             <span class="stat-muted" title="Crit: ${c.crit_pct.toFixed(1)}% · APM: ${c.apm.toFixed(1)}${c.fight_count ? ' · Active in ' + c.fight_count + ' fights (' + fmtSecs(c.active_combat_seconds || 0) + ')' : ''}">${c.crit_pct.toFixed(1)}% crit · ${c.apm.toFixed(0)} APM${fightBadge}</span>
             <span class="stat-muted">${fmtNum(c.damage)}</span>
             <span class="stat-highlight">${fmtNum(c.dps)}/s</span>
-            <button class="btn btn-chat" style="padding: 1px 4px; font-size: 9.5px;" onclick="copyCombatantToChat(${idx})" title="Copy ${escHtml(c.name)}'s DPS breakdown to Windows Clipboard for SWTOR Chat">📋</button>
+            <button class="btn btn-chat" style="padding: 1px 4px; font-size: 9.5px;" onclick="event.stopPropagation(); copyCombatantToChat(${idx})" title="Copy ${escHtml(c.name)}'s DPS breakdown to Windows Clipboard for SWTOR Chat">📋</button>
           </div>
-        </div>`;
+        </div>
+        ${drawerHtml}`;
     });
     document.getElementById('groupList').innerHTML = groupHtml;
 
@@ -2781,6 +3003,32 @@
     const isVisible = box.style.display !== 'none';
     box.style.display = isVisible ? 'none' : 'block';
     if (btn) btn.classList.toggle('active', !isVisible);
+  }
+
+  function toggleGroupPlayerByIdx(idx) {
+    if (!lastSnapshot || !Array.isArray(lastSnapshot.combatants)) return;
+    const c = lastSnapshot.combatants[idx];
+    if (!c || !c.name) return;
+    if (expandedGroupPlayers.has(c.name)) {
+      expandedGroupPlayers.delete(c.name);
+    } else {
+      expandedGroupPlayers.add(c.name);
+    }
+    renderSnapshot(lastSnapshot);
+  }
+
+  function toggleAllGroupPlayers() {
+    if (!lastSnapshot || !Array.isArray(lastSnapshot.combatants)) return;
+    const combatants = lastSnapshot.combatants;
+    const allExpanded = combatants.length > 0 && combatants.every(c => expandedGroupPlayers.has(c.name));
+    if (allExpanded) {
+      expandedGroupPlayers.clear();
+    } else {
+      combatants.forEach(c => {
+        if (c && c.name) expandedGroupPlayers.add(c.name);
+      });
+    }
+    renderSnapshot(lastSnapshot);
   }
 
   async function togglePin() {

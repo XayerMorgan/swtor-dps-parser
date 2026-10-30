@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
-APP_VERSION = "v2.5.0"
+APP_VERSION = "v2.6.0"
 GITHUB_REPO_URL = "https://github.com/XayerMorgan/swtor-dps-parser"
 GITHUB_RAW_VERSION_URL = "https://raw.githubusercontent.com/XayerMorgan/swtor-dps-parser/main/swtor_parser.py"
 GITHUB_RAW_EXE_URL = "https://github.com/XayerMorgan/swtor-dps-parser/raw/main/SWTOR_DPS_Parser.exe"
@@ -1267,6 +1267,7 @@ class SWTORLogParser:
 
         combatants_list = []
         local_stats = None
+        sess_encs_for_runs = self._get_session_encounters() if is_session_view else ([enc] if enc else [])
 
         for c in enc.combatants.values():
             if not (c.is_player or c.is_companion):
@@ -1315,6 +1316,34 @@ class SWTORLogParser:
                     "hps": round(a.total_heal / c_dur, 1),
                 })
 
+            fight_runs = []
+            peak_fight_dps = 0.0
+            peak_fight_title = ""
+            for idx_e, e_item in enumerate(self.encounters):
+                if is_session_view and self.current_area_only and e_item not in sess_encs_for_runs:
+                    continue
+                if not is_session_view and e_item is not enc:
+                    continue
+                ec = e_item.combatants.get(c.name)
+                if not ec or (ec.damage_dealt == 0 and ec.healing_done == 0 and ec.actions == 0):
+                    continue
+                e_dur = max(e_item.duration_seconds, 1.0)
+                e_dps = round(ec.damage_dealt / e_dur, 1)
+                e_crit = round((ec.crits / ec.hits * 100.0) if ec.hits > 0 else 0.0, 1)
+                e_title = e_item.get_title()
+                if e_dps > peak_fight_dps:
+                    peak_fight_dps = e_dps
+                    peak_fight_title = e_title
+                fight_runs.append({
+                    "index": idx_e,
+                    "id": e_item.encounter_id,
+                    "title": e_title,
+                    "duration": e_item.formatted_duration,
+                    "damage": ec.damage_dealt,
+                    "dps": e_dps,
+                    "crit_pct": e_crit,
+                })
+
             entry = {
                 "name": c.name,
                 "is_player": c.is_player,
@@ -1340,7 +1369,10 @@ class SWTORLogParser:
                 "misses": c.misses,
                 "max_hit": max_hit_val,
                 "max_hit_ability": max_hit_abil,
+                "peak_fight_dps": round(peak_fight_dps, 1),
+                "peak_fight_title": peak_fight_title,
                 "abilities": abil_data,
+                "fight_runs": fight_runs,
             }
             combatants_list.append(entry)
             if c.name == self.local_player_name:

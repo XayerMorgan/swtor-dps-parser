@@ -229,11 +229,12 @@ class TestSWTORParser(unittest.TestCase):
         self.assertIn("Drocinth", combatant_names)
         self.assertNotIn("Rhykan", combatant_names)
 
-        # Verify semver comparison for GitHub update detection
+        # Verify semver comparison for GitHub update detection and per-combatant fight_runs
         from swtor_parser import APP_VERSION, parse_semver
-        self.assertEqual(parse_semver("v2.5.0"), (2, 5, 0))
-        self.assertGreater(parse_semver("v2.6.0"), parse_semver(APP_VERSION))
-        self.assertGreater(parse_semver("v2.5.1"), parse_semver("v2.5.0"))
+        self.assertEqual(parse_semver("v2.6.0"), (2, 6, 0))
+        self.assertGreater(parse_semver("v2.7.0"), parse_semver(APP_VERSION))
+        self.assertEqual(len(mag_row["fight_runs"]), 1)
+        self.assertAlmostEqual(mag_row["peak_fight_dps"], 8000.0, places=1)
 
 
 if __name__ == "__main__":
